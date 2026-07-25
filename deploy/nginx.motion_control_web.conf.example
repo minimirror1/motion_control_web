@@ -1,0 +1,32 @@
+# Reference only - not applied automatically. Copy to
+# /etc/nginx/sites-available/motion_control_web, adjust paths, then:
+#   sudo ln -s /etc/nginx/sites-available/motion_control_web /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Single origin for the SPA + rosbridge + web_video_server, so the browser
+# never has to deal with mixed-content/CORS across ports.
+
+server {
+    listen 80;
+    server_name _;
+
+    root /home/shs/colcon_ws/src/ros2/motion_control_web/web/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /rosbridge {
+        proxy_pass http://127.0.0.1:9090;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    location /video/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header Host $host;
+    }
+}

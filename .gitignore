@@ -1,0 +1,14 @@
+# ROS2 / colcon
+build/
+install/
+log/
+__pycache__/
+*.pyc
+
+# web/
+web/node_modules/
+web/dist/
+web/.env.local
+web/test-results/
+web/playwright-report/
+web/e2e/test-results/
