@@ -72,7 +72,8 @@ cd ~/colcon_ws
 colcon build --packages-select motion_control_web
 source install/setup.bash
 
-# real robot stack (rosbridge + web_video_server + safety_gateway_node)
+# real robot stack (rosbridge + web_video_server + safety_gateway_node
+# + motion_control_teach_node; requires the workspace's motion_control_teach package)
 ros2 launch motion_control_web motion_control_web.launch.py
 
 # OR: offline dev stack (rosbridge + fake RobotState/MotorStatus publisher)
@@ -170,7 +171,8 @@ cd ~/colcon_ws
 colcon build --packages-select motion_control_web
 source install/setup.bash
 
-# 실제 로봇 스택 (rosbridge + web_video_server + safety_gateway_node)
+# 실제 로봇 스택 (rosbridge + web_video_server + safety_gateway_node
+# + motion_control_teach_node; 워크스페이스의 motion_control_teach 패키지 필요)
 ros2 launch motion_control_web motion_control_web.launch.py
 
 # 또는: 오프라인 개발용 스택 (rosbridge + 가짜 RobotState/MotorStatus 퍼블리셔)

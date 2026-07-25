@@ -19,6 +19,7 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>web_video_server</exec_depend>
+  <exec_depend>motion_control_teach</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

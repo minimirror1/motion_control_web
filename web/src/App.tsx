@@ -1,5 +1,6 @@
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { ControlPanel } from './components/ControlPanel'
+import { TeachPanel } from './components/TeachPanel'
 
 function App() {
   return (
@@ -8,6 +9,7 @@ function App() {
         <h1 className="mb-4 text-xl font-semibold text-slate-100">motion_control_web</h1>
         <ConnectionStatus />
         <ControlPanel />
+        <TeachPanel />
       </main>
     </div>
   )

@@ -77,4 +77,10 @@ def generate_launch_description():
             output='screen',
             parameters=[LaunchConfiguration('control_gateway_params_file')],
         ),
+        Node(
+            package='motion_control_teach',
+            executable='motion_control_teach_node',
+            name='motion_control_teach_node',
+            output='screen',
+        ),
     ])

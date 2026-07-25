@@ -23,9 +23,34 @@ class MockTopic {
   }
 }
 
+class MockService {
+  static instances: Array<{
+    options: { name: string; serviceType: string }
+    respond: ((response: unknown) => void) | null
+    fail: ((error: string) => void) | null
+  }> = []
+
+  private record: (typeof MockService.instances)[number]
+
+  constructor(options: { name: string; serviceType: string }) {
+    this.record = { options, respond: null, fail: null }
+    MockService.instances.push(this.record)
+  }
+
+  callService(
+    _request: unknown,
+    callback: (response: unknown) => void,
+    failedCallback?: (error: string) => void,
+  ) {
+    this.record.respond = callback
+    this.record.fail = failedCallback ?? null
+  }
+}
+
 vi.mock('roslib', () => ({
   Ros: MockRos,
   Topic: MockTopic,
+  Service: MockService,
 }))
 
 const {
@@ -36,6 +61,7 @@ const {
 describe('connectionStore', () => {
   beforeEach(() => {
     MockTopic.published = []
+    MockService.instances = []
     useConnectionStore.setState({
       connected: false,
       ros: null,
@@ -75,5 +101,49 @@ describe('connectionStore', () => {
 
     expect(sent).toBe(true)
     expect(MockTopic.published).toEqual([{ data: 3 }])
+  })
+
+  it('rejects a service call while disconnected', async () => {
+    await expect(
+      useConnectionStore
+        .getState()
+        .callService('/x/trigger', 'std_srvs/srv/Trigger', {}),
+    ).rejects.toThrow('ROS is not connected.')
+    expect(MockService.instances).toHaveLength(0)
+  })
+
+  it('constructs the service with the given name and type and resolves', async () => {
+    useConnectionStore.getState().connect()
+    const ros = useConnectionStore.getState().ros as unknown as MockRos
+    ros.emit('connection')
+
+    const pending = useConnectionStore
+      .getState()
+      .callService('/teach/start_recording', 'motion_control_msgs/srv/StartRecording', {
+        file_name: 'a',
+      })
+
+    expect(MockService.instances).toHaveLength(1)
+    expect(MockService.instances[0].options).toEqual({
+      ros: useConnectionStore.getState().ros,
+      name: '/teach/start_recording',
+      serviceType: 'motion_control_msgs/srv/StartRecording',
+    })
+
+    MockService.instances[0].respond?.({ success: true, message: 'ok' })
+    await expect(pending).resolves.toEqual({ success: true, message: 'ok' })
+  })
+
+  it('rejects when the rosbridge failedCallback fires', async () => {
+    useConnectionStore.getState().connect()
+    const ros = useConnectionStore.getState().ros as unknown as MockRos
+    ros.emit('connection')
+
+    const pending = useConnectionStore
+      .getState()
+      .callService('/x/trigger', 'std_srvs/srv/Trigger', {})
+
+    MockService.instances[0].fail?.('service unavailable')
+    await expect(pending).rejects.toThrow('service unavailable')
   })
 })

@@ -1,4 +1,4 @@
-import { Ros, Topic } from 'roslib'
+import { Ros, Service, Topic } from 'roslib'
 import { create } from 'zustand'
 import { createRosConnection } from '../lib/ros'
 import { decodeByteArray } from '../lib/rosbridgeCodec'
@@ -37,6 +37,8 @@ export const CONTROL_COMMAND = {
 export type ControlCommand =
   (typeof CONTROL_COMMAND)[keyof typeof CONTROL_COMMAND]
 
+const SERVICE_CALL_TIMEOUT_MS = 10_000
+
 interface ConnectionStore {
   connected: boolean
   ros: Ros | null
@@ -45,6 +47,11 @@ interface ConnectionStore {
   controlCommandTopic: Topic<UInt8Message> | null
   connect: () => void
   sendControlCommand: (command: ControlCommand) => boolean
+  callService: <TRequest extends object, TResponse>(
+    name: string,
+    serviceType: string,
+    request: TRequest,
+  ) => Promise<TResponse>
 }
 
 export const useConnectionStore = create<ConnectionStore>((set, get) => ({
@@ -106,5 +113,35 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
 
     controlCommandTopic.publish({ data: command })
     return true
+  },
+  callService: <TRequest extends object, TResponse>(
+    name: string,
+    serviceType: string,
+    request: TRequest,
+  ) => {
+    const { connected, ros } = get()
+    if (!connected || !ros) {
+      return Promise.reject(new Error('ROS is not connected.'))
+    }
+
+    const service = new Service<TRequest, TResponse>({ ros, name, serviceType })
+    return new Promise<TResponse>((resolve, reject) => {
+      // rosbridge stays silent when the target node is down - fail on our own.
+      const timeout = setTimeout(
+        () => reject(new Error(`Service call timed out: ${name}`)),
+        SERVICE_CALL_TIMEOUT_MS,
+      )
+      service.callService(
+        request,
+        (response) => {
+          clearTimeout(timeout)
+          resolve(response)
+        },
+        (error) => {
+          clearTimeout(timeout)
+          reject(new Error(error))
+        },
+      )
+    })
   },
 }))

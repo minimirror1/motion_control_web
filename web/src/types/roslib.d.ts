@@ -14,6 +14,18 @@ declare module 'roslib' {
     publish(message: T): void
   }
 
-  const ROSLIB: { Ros: typeof Ros; Topic: typeof Topic }
+  export class Service<
+    TRequest = Record<string, unknown>,
+    TResponse = Record<string, unknown>,
+  > {
+    constructor(options: { ros: Ros; name: string; serviceType: string })
+    callService(
+      request: TRequest,
+      callback: (response: TResponse) => void,
+      failedCallback?: (error: string) => void,
+    ): void
+  }
+
+  const ROSLIB: { Ros: typeof Ros; Topic: typeof Topic; Service: typeof Service }
   export default ROSLIB
 }
