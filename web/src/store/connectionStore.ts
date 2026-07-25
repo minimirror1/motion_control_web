@@ -10,21 +10,49 @@ export interface RobotState {
   progress: number[]
 }
 
+export interface MotorStatus {
+  controller_index: number[]
+  statusword: number[]
+}
+
 // Wire shape from rosbridge: `state` (uint8[]) arrives base64-encoded, see
 // lib/rosbridgeCodec.ts.
 type RobotStateWireMessage = Omit<RobotState, 'state'> & { state: string | number[] }
+type MotorStatusWireMessage = Omit<MotorStatus, 'controller_index'> & {
+  controller_index: string | number[]
+}
+
+interface UInt8Message {
+  data: number
+}
+
+export const CONTROL_COMMAND = {
+  ENABLE_MOTORS: 1,
+  PLAY_MOTION: 2,
+  STOP_MOTION: 3,
+  HOME: 4,
+  DISABLE_MOTORS: 5,
+} as const
+
+export type ControlCommand =
+  (typeof CONTROL_COMMAND)[keyof typeof CONTROL_COMMAND]
 
 interface ConnectionStore {
   connected: boolean
   ros: Ros | null
   robotState: RobotState | null
+  motorStatus: MotorStatus | null
+  controlCommandTopic: Topic<UInt8Message> | null
   connect: () => void
+  sendControlCommand: (command: ControlCommand) => boolean
 }
 
 export const useConnectionStore = create<ConnectionStore>((set, get) => ({
   connected: false,
   ros: null,
   robotState: null,
+  motorStatus: null,
+  controlCommandTopic: null,
   connect: () => {
     if (get().ros) {
       return
@@ -32,8 +60,8 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
 
     const ros = createRosConnection(
       () => set({ connected: true }),
-      () => set({ connected: false }),
-      () => set({ connected: false }),
+      () => set({ connected: false, motorStatus: null }),
+      () => set({ connected: false, motorStatus: null }),
     )
 
     // motion_control/robot_state (motion_control_robot/robot_manager_node.py) is
@@ -48,6 +76,35 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       set({ robotState: { ...message, state: decodeByteArray(message.state) } }),
     )
 
-    set({ ros })
+    const motorStatusTopic = new Topic<MotorStatusWireMessage>({
+      ros,
+      name: 'motion_control/motor_status',
+      messageType: 'motion_control_msgs/MotorStatus',
+    })
+    motorStatusTopic.subscribe((message) =>
+      set({
+        motorStatus: {
+          controller_index: decodeByteArray(message.controller_index),
+          statusword: message.statusword,
+        },
+      }),
+    )
+
+    const controlCommandTopic = new Topic<UInt8Message>({
+      ros,
+      name: 'motion_control_web/control_command',
+      messageType: 'std_msgs/UInt8',
+    })
+
+    set({ ros, controlCommandTopic })
+  },
+  sendControlCommand: (command) => {
+    const { connected, controlCommandTopic } = get()
+    if (!connected || !controlCommandTopic) {
+      return false
+    }
+
+    controlCommandTopic.publish({ data: command })
+    return true
   },
 }))

@@ -22,7 +22,13 @@ const { useConnectionStore } = await import('../src/store/connectionStore')
 
 describe('ConnectionStatus', () => {
   beforeEach(() => {
-    useConnectionStore.setState({ connected: false, ros: null, robotState: null })
+    useConnectionStore.setState({
+      connected: false,
+      ros: null,
+      robotState: null,
+      motorStatus: null,
+      controlCommandTopic: null,
+    })
   })
 
   it('renders a disconnected status by default', () => {

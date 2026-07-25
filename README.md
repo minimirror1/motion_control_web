@@ -59,6 +59,8 @@ re-litigate from scratch:
 | `motion_control/motor_status` | `motion_control_msgs/msg/MotorStatus` | robot -> web (monitor) |
 | `motion_control/motor_command` | `motion_control_msgs/msg/MotorStatus` | **real command sink** - never publish here directly from the browser |
 | `motion_control_web/motor_command_request` | `motion_control_msgs/msg/MotorStatus` | web -> `safety_gateway_node` (validated, then forwarded to `motion_control/motor_command`) |
+| `motion_control_web/control_command` | `std_msgs/msg/UInt8` | web -> `control_gateway_node`; `1` enable motors, `2` play motion, `3` stop motion, `4` home, `5` disable motors |
+| `joy` | `sensor_msgs/msg/Joy` | `control_gateway_node` -> existing `RobotManagerNode` joystick interface |
 
 ### Build & Run (ROS 2 side)
 
@@ -155,6 +157,8 @@ npm run e2e                                          # Playwright smoke test (au
 | `motion_control/motor_status` | `motion_control_msgs/msg/MotorStatus` | 로봇 -> 웹 (모니터링) |
 | `motion_control/motor_command` | `motion_control_msgs/msg/MotorStatus` | **실제 명령 수신처** - 브라우저에서 직접 publish 금지 |
 | `motion_control_web/motor_command_request` | `motion_control_msgs/msg/MotorStatus` | 웹 -> `safety_gateway_node` (검증 후 `motion_control/motor_command`로 전달) |
+| `motion_control_web/control_command` | `std_msgs/msg/UInt8` | 웹 -> `control_gateway_node`; `1` 모터 활성화, `2` 모션 재생, `3` 모션 중지, `4` Home, `5` 모터 비활성화 |
+| `joy` | `sensor_msgs/msg/Joy` | `control_gateway_node` -> 기존 `RobotManagerNode` 조이스틱 인터페이스 |
 
 ### 빌드 & 실행 (ROS 2 쪽)
 

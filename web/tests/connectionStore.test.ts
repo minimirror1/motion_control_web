@@ -15,9 +15,12 @@ class MockRos {
 }
 
 class MockTopic {
+  static published: unknown[] = []
   subscribe() {}
   unsubscribe() {}
-  publish() {}
+  publish(message: unknown) {
+    MockTopic.published.push(message)
+  }
 }
 
 vi.mock('roslib', () => ({
@@ -25,11 +28,21 @@ vi.mock('roslib', () => ({
   Topic: MockTopic,
 }))
 
-const { useConnectionStore } = await import('../src/store/connectionStore')
+const {
+  CONTROL_COMMAND,
+  useConnectionStore,
+} = await import('../src/store/connectionStore')
 
 describe('connectionStore', () => {
   beforeEach(() => {
-    useConnectionStore.setState({ connected: false, ros: null, robotState: null })
+    MockTopic.published = []
+    useConnectionStore.setState({
+      connected: false,
+      ros: null,
+      robotState: null,
+      motorStatus: null,
+      controlCommandTopic: null,
+    })
   })
 
   it('starts disconnected', () => {
@@ -49,5 +62,18 @@ describe('connectionStore', () => {
     ros.emit('connection')
     ros.emit('close')
     expect(useConnectionStore.getState().connected).toBe(false)
+  })
+
+  it('publishes an allowlisted control command while connected', () => {
+    useConnectionStore.getState().connect()
+    const ros = useConnectionStore.getState().ros as unknown as MockRos
+    ros.emit('connection')
+
+    const sent = useConnectionStore
+      .getState()
+      .sendControlCommand(CONTROL_COMMAND.STOP_MOTION)
+
+    expect(sent).toBe(true)
+    expect(MockTopic.published).toEqual([{ data: 3 }])
   })
 })

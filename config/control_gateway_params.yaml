@@ -1,0 +1,6 @@
+control_gateway_node:
+  ros__parameters:
+    input_topic: motion_control_web/control_command
+    output_topic: joy
+    min_command_interval_sec: 0.25
+    button_hold_sec: 0.1

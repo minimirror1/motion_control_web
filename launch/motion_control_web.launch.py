@@ -11,6 +11,11 @@ DEFAULT_GATEWAY_PARAMS_FILE = os.path.join(
     'config',
     'gateway_params.yaml',
 )
+DEFAULT_CONTROL_GATEWAY_PARAMS_FILE = os.path.join(
+    get_package_share_directory('motion_control_web'),
+    'config',
+    'control_gateway_params.yaml',
+)
 
 
 def generate_launch_description():
@@ -29,11 +34,17 @@ def generate_launch_description():
         default_value=DEFAULT_GATEWAY_PARAMS_FILE,
         description='Absolute path to safety_gateway_node params YAML.',
     )
+    control_gateway_params_file_arg = DeclareLaunchArgument(
+        'control_gateway_params_file',
+        default_value=DEFAULT_CONTROL_GATEWAY_PARAMS_FILE,
+        description='Absolute path to control_gateway_node params YAML.',
+    )
 
     return LaunchDescription([
         rosbridge_port_arg,
         video_port_arg,
         gateway_params_file_arg,
+        control_gateway_params_file_arg,
         Node(
             package='rosbridge_server',
             executable='rosbridge_websocket',
@@ -58,5 +69,12 @@ def generate_launch_description():
             name='safety_gateway_node',
             output='screen',
             parameters=[LaunchConfiguration('gateway_params_file')],
+        ),
+        Node(
+            package='motion_control_web',
+            executable='control_gateway_node',
+            name='control_gateway_node',
+            output='screen',
+            parameters=[LaunchConfiguration('control_gateway_params_file')],
         ),
     ])
