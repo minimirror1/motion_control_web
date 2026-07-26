@@ -67,6 +67,7 @@ describe('connectionStore', () => {
       ros: null,
       robotState: null,
       motorStatus: null,
+      motorConfig: null,
       controlCommandTopic: null,
     })
   })
@@ -145,5 +146,58 @@ describe('connectionStore', () => {
 
     MockService.instances[0].fail?.('service unavailable')
     await expect(pending).rejects.toThrow('service unavailable')
+  })
+
+  it('fetchMotorConfig stores the parsed, decoded motor config on success', async () => {
+    useConnectionStore.getState().connect()
+    const ros = useConnectionStore.getState().ros as unknown as MockRos
+    ros.emit('connection')
+
+    const pending = useConnectionStore.getState().fetchMotorConfig()
+
+    expect(MockService.instances[0].options).toEqual({
+      ros: useConnectionStore.getState().ros,
+      name: 'motion_control_web/get_motor_config',
+      serviceType: 'motion_control_msgs/srv/GetMotorConfig',
+    })
+    MockService.instances[0].respond?.({
+      success: true,
+      message: 'ok',
+      controller_index: [0],
+      lower: [-10],
+      upper: [10],
+      speed: [5],
+      gear_ratio: [1],
+      rated_effort: [0.6],
+      motor_type: ['dynamixel'],
+    })
+    await pending
+
+    expect(useConnectionStore.getState().motorConfig).toEqual([
+      {
+        controllerIndex: 0,
+        lower: -10,
+        upper: 10,
+        speed: 5,
+        gearRatio: 1,
+        ratedEffort: 0.6,
+        motorType: 'dynamixel',
+      },
+    ])
+  })
+
+  it('fetchMotorConfig leaves motorConfig untouched when the service reports failure', async () => {
+    useConnectionStore.getState().connect()
+    const ros = useConnectionStore.getState().ros as unknown as MockRos
+    ros.emit('connection')
+
+    const pending = useConnectionStore.getState().fetchMotorConfig()
+    MockService.instances[0].respond?.({
+      success: false,
+      message: 'config file not found',
+    })
+    await pending
+
+    expect(useConnectionStore.getState().motorConfig).toBeNull()
   })
 })

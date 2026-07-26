@@ -24,6 +24,7 @@ setup(
         'console_scripts': [
             'control_gateway_node = motion_control_web.control_gateway_node:main',
             'safety_gateway_node = motion_control_web.safety_gateway_node:main',
+            'motor_config_gateway_node = motion_control_web.motor_config_gateway_node:main',
             'mock_state_publisher_node = motion_control_web.mock_state_publisher_node:main',
         ],
     },

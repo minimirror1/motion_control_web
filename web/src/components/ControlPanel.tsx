@@ -5,10 +5,7 @@ import {
   type MotorStatus,
   useConnectionStore,
 } from '../store/connectionStore'
-
-export function isMotorEnabled(statusword: number): boolean {
-  return statusword === 1 || (statusword & 0x006f) === 0x0027
-}
+import { isMotorEnabled } from '../lib/motorStatus'
 
 function motorStateLabel(connected: boolean, motorStatus: MotorStatus | null) {
   if (!connected) {
@@ -85,28 +82,6 @@ export function ControlPanel() {
           모터: {motorStateLabel(connected, motorStatus)}
         </span>
       </div>
-      {connected && motorStatus && motorStatus.controller_index.length > 0 && (
-        <div
-          data-testid="motor-power-details"
-          className="mb-3 flex flex-wrap gap-2 text-xs"
-        >
-          {motorStatus.controller_index.map((controllerIndex, index) => {
-            const enabled = isMotorEnabled(motorStatus.statusword[index] ?? 0)
-            return (
-              <span
-                key={controllerIndex}
-                className={`rounded px-2 py-1 ${
-                  enabled
-                    ? 'bg-emerald-950 text-emerald-300'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                Motor {controllerIndex}: {enabled ? '활성' : '비활성'}
-              </span>
-            )
-          })}
-        </div>
-      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {controls.map(({ command, label, className }) => (
           <button

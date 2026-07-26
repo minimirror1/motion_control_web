@@ -63,19 +63,19 @@ describe('ControlPanel', () => {
       connected: true,
       motorStatus: {
         controller_index: [0, 1, 2],
+        controlword: [0, 0, 0],
         statusword: [5687, 1, 0],
+        errorcode: [0, 0, 0],
+        encoder: [0, 0, 0],
+        position: [0, 0, 0],
+        velocity: [0, 0, 0],
+        effort: [0, 0, 0],
       },
     })
     render(<ControlPanel />)
 
     expect(screen.getByTestId('motor-power-state')).toHaveTextContent(
       '모터: 일부 활성 (2/3)',
-    )
-    expect(screen.getByTestId('motor-power-details')).toHaveTextContent(
-      'Motor 0: 활성',
-    )
-    expect(screen.getByTestId('motor-power-details')).toHaveTextContent(
-      'Motor 2: 비활성',
     )
   })
 })

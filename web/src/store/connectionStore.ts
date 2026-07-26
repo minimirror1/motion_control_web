@@ -2,6 +2,11 @@ import { Ros, Service, Topic } from 'roslib'
 import { create } from 'zustand'
 import { createRosConnection } from '../lib/ros'
 import { decodeByteArray } from '../lib/rosbridgeCodec'
+import {
+  parseMotorConfigResponse,
+  type GetMotorConfigResponse,
+  type MotorConfigEntry,
+} from '../lib/motorConfig'
 
 export interface RobotState {
   selected_robot_index: number
@@ -12,7 +17,13 @@ export interface RobotState {
 
 export interface MotorStatus {
   controller_index: number[]
+  controlword: number[]
   statusword: number[]
+  errorcode: number[]
+  encoder: number[]
+  position: number[]
+  velocity: number[]
+  effort: number[]
 }
 
 // Wire shape from rosbridge: `state` (uint8[]) arrives base64-encoded, see
@@ -44,9 +55,11 @@ interface ConnectionStore {
   ros: Ros | null
   robotState: RobotState | null
   motorStatus: MotorStatus | null
+  motorConfig: MotorConfigEntry[] | null
   controlCommandTopic: Topic<UInt8Message> | null
   connect: () => void
   sendControlCommand: (command: ControlCommand) => boolean
+  fetchMotorConfig: () => Promise<void>
   callService: <TRequest extends object, TResponse>(
     name: string,
     serviceType: string,
@@ -59,6 +72,7 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
   ros: null,
   robotState: null,
   motorStatus: null,
+  motorConfig: null,
   controlCommandTopic: null,
   connect: () => {
     if (get().ros) {
@@ -92,7 +106,13 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       set({
         motorStatus: {
           controller_index: decodeByteArray(message.controller_index),
+          controlword: message.controlword,
           statusword: message.statusword,
+          errorcode: message.errorcode,
+          encoder: message.encoder,
+          position: message.position,
+          velocity: message.velocity,
+          effort: message.effort,
         },
       }),
     )
@@ -113,6 +133,22 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
 
     controlCommandTopic.publish({ data: command })
     return true
+  },
+  fetchMotorConfig: async () => {
+    try {
+      const response = await get().callService<object, GetMotorConfigResponse>(
+        'motion_control_web/get_motor_config',
+        'motion_control_msgs/srv/GetMotorConfig',
+        {},
+      )
+      if (!response.success) {
+        console.error(`get_motor_config failed: ${response.message}`)
+        return
+      }
+      set({ motorConfig: parseMotorConfigResponse(response) })
+    } catch (error) {
+      console.error('fetchMotorConfig failed', error)
+    }
   },
   callService: <TRequest extends object, TResponse>(
     name: string,

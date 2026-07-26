@@ -16,6 +16,11 @@ DEFAULT_CONTROL_GATEWAY_PARAMS_FILE = os.path.join(
     'config',
     'control_gateway_params.yaml',
 )
+DEFAULT_MOTOR_CONFIG_FILE = os.path.join(
+    os.environ.get('MOTION_SYSTEM_FILES_DIR', os.path.expanduser('~/colcon_ws/files')),
+    'motor_manager',
+    'active_motor_manager.yaml',
+)
 
 
 def generate_launch_description():
@@ -39,12 +44,18 @@ def generate_launch_description():
         default_value=DEFAULT_CONTROL_GATEWAY_PARAMS_FILE,
         description='Absolute path to control_gateway_node params YAML.',
     )
+    motor_config_file_arg = DeclareLaunchArgument(
+        'motor_config_file',
+        default_value=DEFAULT_MOTOR_CONFIG_FILE,
+        description='Absolute path to motor_manager YAML (masters / drivers), served over motion_control_web/get_motor_config.',
+    )
 
     return LaunchDescription([
         rosbridge_port_arg,
         video_port_arg,
         gateway_params_file_arg,
         control_gateway_params_file_arg,
+        motor_config_file_arg,
         Node(
             package='rosbridge_server',
             executable='rosbridge_websocket',
@@ -82,5 +93,14 @@ def generate_launch_description():
             executable='motion_control_teach_node',
             name='motion_control_teach_node',
             output='screen',
+        ),
+        Node(
+            package='motion_control_web',
+            executable='motor_config_gateway_node',
+            name='motor_config_gateway_node',
+            output='screen',
+            parameters=[{
+                'config_file': LaunchConfiguration('motor_config_file'),
+            }],
         ),
     ])

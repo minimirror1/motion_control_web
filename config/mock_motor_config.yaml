@@ -1,0 +1,26 @@
+# Fixture motor config for mock_dev.launch.py only - NOT used on the real robot
+# (real config lives outside src/ at ~/colcon_ws/files/motor_manager/, resolved
+# via MOTION_SYSTEM_FILES_DIR by motor_manager_node.launch.py).
+# controller_index 0-2 matches mock_state_publisher_node.py's NUM_MOCK_MOTORS.
+# lower/upper are intentionally narrow (not real dynamixel +/-180deg limits) so
+# mock_state_publisher_node's sin(t+i)/cos(t+i) position visibly sweeps the
+# gauge during dev, instead of sitting pinned near the center.
+masters:
+  - id: 0
+    type: serial
+    slaves:
+      - controller_index: 0
+        driver_id: 0
+      - controller_index: 1
+        driver_id: 0
+      - controller_index: 2
+        driver_id: 0
+
+drivers:
+  - id: 0
+    type: dynamixel
+    gear_ratio: 1.0
+    rated_effort: 0.61
+    lower: -1.5
+    upper: 1.5
+    speed: 3.0

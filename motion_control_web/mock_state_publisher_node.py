@@ -62,8 +62,8 @@ class MockStatePublisherNode(Node):
         motor_status.target_interface_id = [Int8MultiArray(data=[0]) for _ in range(NUM_MOCK_MOTORS)]
         motor_status.controller_index = list(range(NUM_MOCK_MOTORS))
         motor_status.controlword = [0] * NUM_MOCK_MOTORS
-        motor_status.statusword = [0] * NUM_MOCK_MOTORS
-        motor_status.errorcode = [0] * NUM_MOCK_MOTORS
+        motor_status.statusword = [0x0027, 0, 1]  # motor 0,2 enabled pattern, motor 1 disabled
+        motor_status.errorcode = [0, 0, 5]  # fake fault code on motor 2
         motor_status.encoder = [0] * NUM_MOCK_MOTORS
         motor_status.position = [
             math.sin(self._t + i) for i in range(NUM_MOCK_MOTORS)
