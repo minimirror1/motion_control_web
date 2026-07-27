@@ -7,7 +7,10 @@ import {
 import { useConnectionStore } from '../../store/connectionStore'
 
 const CAPACITY = 3000
-const REDRAW_INTERVAL_MS = 100
+// rosbridge throttles motor_status to roughly 20 Hz for the browser. Redraw at
+// the same cadence so the live waveform stays lightweight without hiding
+// samples that already reached the client.
+const REDRAW_INTERVAL_MS = 50
 
 const EMPTY: { stats: RecordingStats; data: WaveformData } = {
   stats: {
@@ -23,8 +26,8 @@ const EMPTY: { stats: RecordingStats; data: WaveformData } = {
 
 /**
  * Accumulates motor_status into a ring buffer while recording. Subscribes to the
- * store outside React so 1 kHz feedback does not trigger 1 kHz re-renders - the
- * snapshot is published on a fixed redraw interval instead.
+ * store outside React so feedback does not trigger a render for every message;
+ * the snapshot is published at the browser's low-resolution display rate.
  */
 export function useRecordingMonitor(recording: boolean) {
   const bufferRef = useRef(new RecordingBuffer(CAPACITY))

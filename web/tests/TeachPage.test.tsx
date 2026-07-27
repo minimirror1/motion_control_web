@@ -303,19 +303,33 @@ describe('TeachPage', () => {
     expect(screen.getByRole('button', { name: '녹화 종료' })).toBeEnabled()
   })
 
-  it('stops a recording, chains reload_config, and refreshes the list', async () => {
+  it('loads the completed recording once at full resolution', async () => {
+    const completedFile = 'teach_20260725_2200.csv'
+    const completedListResponse = {
+      ...listResponse,
+      files: [...listResponse.files, completedFile],
+    }
     const callService = mockServices({
-      [`${TEACH_NODE}/list_motion_files`]: listResponse,
+      [`${TEACH_NODE}/list_motion_files`]: completedListResponse,
       [`${TEACH_NODE}/start_recording`]: {
         success: true,
         message: '',
-        file_name: 'teach_20260725_2200.csv',
+        file_name: completedFile,
       },
       [`${TEACH_NODE}/stop_recording`]: {
         success: true,
         message: '',
-        file_name: 'teach_20260725_2200.csv',
+        file_name: completedFile,
         duration: 12.34,
+      },
+      [`${TEACH_NODE}/get_motion_data`]: {
+        success: true,
+        message: '',
+        time: [0, 0.01, 0.02],
+        controller_index: btoa('\x00\x01'),
+        positions: [0, 0.1, 0.2, 1, 1.1, 1.2],
+        total_samples: 3,
+        duration: 0.02,
       },
       [`${ROBOT_NODE}/reload_config`]: {
         success: true,
@@ -337,6 +351,20 @@ describe('TeachPage', () => {
       `${ROBOT_NODE}/reload_config`,
       'std_srvs/srv/Trigger',
       {},
+    )
+    const completedPreviewCalls = callService.mock.calls.filter(
+      ([name, , request]) =>
+        name === `${TEACH_NODE}/get_motion_data` &&
+        (request as { file_name?: string }).file_name === completedFile,
+    )
+    expect(completedPreviewCalls).toHaveLength(1)
+    expect(completedPreviewCalls[0]).toEqual([
+      `${TEACH_NODE}/get_motion_data`,
+      'motion_control_msgs/srv/GetMotionData',
+      { file_name: completedFile, max_samples: 0 },
+    ])
+    expect(screen.getByTestId('teach-active-file')).toHaveTextContent(
+      `미리보기: ${completedFile}`,
     )
     expect(screen.getByTestId('teach-recording-state')).toHaveTextContent('대기')
   })

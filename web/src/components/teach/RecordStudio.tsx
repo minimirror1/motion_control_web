@@ -8,7 +8,8 @@ import { buttonClass, formatCount } from './teachUi'
 import { useHotkey } from './useHotkey'
 import { useRecordingMonitor } from './useRecordingMonitor'
 
-// motor_status runs at ~1 kHz, so a minute is already a 60k-column CSV.
+// Long recordings can still produce large CSV files even though the browser
+// only renders a low-resolution live waveform.
 const LONG_RECORDING_SECONDS = 60
 
 function formatElapsed(seconds: number): string {
@@ -42,8 +43,8 @@ export function RecordStudio({
   const { stats, data } = useRecordingMonitor(recording)
 
   // The node counts what actually lands in the CSV. The local buffer only sees
-  // what rosbridge forwards (~100 Hz of a 1 kHz feed) and restarts on reload, so
-  // it must not drive the counters - only the waveform.
+  // rosbridge's throttled ~20 Hz display stream and restarts on reload, so it
+  // must not drive the counters - only the waveform.
   const counters =
     recordingStatus?.active === true
       ? { elapsed: recordingStatus.elapsed, samples: recordingStatus.sample_count }
@@ -66,11 +67,14 @@ export function RecordStudio({
   const handleStopRecording = () =>
     run(async () => {
       const response = await stopRecording()
-      dispatch({ type: 'recording_stopped' })
       if (!response.success) {
+        dispatch({ type: 'recording_stopped' })
         dispatch({ type: 'feedback', message: response.message })
         return
       }
+      // Select the file and trigger one max_samples=0 request. The live buffer
+      // disappears immediately; the saved full-resolution trajectory replaces it.
+      dispatch({ type: 'recording_completed', file: response.file_name })
       const suffix = await reloadAfterChange()
       dispatch({
         type: 'feedback',

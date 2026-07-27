@@ -4,8 +4,8 @@ import { getMotionData } from '../../lib/teachServices'
 import { useConnectionStore } from '../../store/connectionStore'
 import { errorText } from './teachUi'
 
-// Enough to see the shape of a motion without shipping a 1 kHz recording over
-// rosbridge as JSON.
+// Normal library browsing uses a lightweight preview. A completed recording
+// passes maxSamples=0 once so the chart is replaced with the full saved file.
 const PREVIEW_MAX_SAMPLES = 2000
 
 export interface MotionPreview {
@@ -14,7 +14,11 @@ export interface MotionPreview {
   loading: boolean
 }
 
-export function useMotionPreview(fileName: string, reloadKey = 0): MotionPreview {
+export function useMotionPreview(
+  fileName: string,
+  reloadKey = 0,
+  maxSamples = PREVIEW_MAX_SAMPLES,
+): MotionPreview {
   const connected = useConnectionStore((store) => store.connected)
   const [preview, setPreview] = useState<MotionPreview>({
     data: null,
@@ -30,7 +34,7 @@ export function useMotionPreview(fileName: string, reloadKey = 0): MotionPreview
 
     let cancelled = false
     setPreview((current) => ({ ...current, loading: true }))
-    getMotionData(fileName, PREVIEW_MAX_SAMPLES)
+    getMotionData(fileName, maxSamples)
       .then((response) => {
         if (cancelled) {
           return
@@ -50,7 +54,7 @@ export function useMotionPreview(fileName: string, reloadKey = 0): MotionPreview
     return () => {
       cancelled = true
     }
-  }, [connected, fileName, reloadKey])
+  }, [connected, fileName, reloadKey, maxSamples])
 
   return preview
 }

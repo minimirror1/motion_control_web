@@ -55,7 +55,11 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
   // Preview whatever the operator picked in the library, falling back to what is
   // actually loaded for playback.
   const previewFile = state.selectedFile ?? state.activeFile
-  const preview = useMotionPreview(previewFile, state.previewVersion)
+  const preview = useMotionPreview(
+    previewFile,
+    state.previewVersion,
+    state.previewFullResolution ? 0 : undefined,
+  )
 
   // The recorded duration is the 1x reference; the slider scales it.
   const baseDuration = preview.data?.duration ?? 0

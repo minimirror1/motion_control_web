@@ -12,9 +12,8 @@ export interface RecordingStats {
 export type WaveformData = [number[], ...number[][]]
 
 /**
- * Ring buffer for the live recording waveform. motor_status arrives at up to
- * 1 kHz, so only the most recent `capacity` samples are kept for drawing while
- * the counters keep tracking the full recording.
+ * Ring buffer for the low-resolution browser waveform. The ROS node records the
+ * full stream independently; this buffer only keeps the latest display samples.
  */
 export class RecordingBuffer {
   private xs: number[] = []
