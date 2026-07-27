@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { startRecording, stopRecording } from '../../lib/teachServices'
+import { isMotorEnabled } from '../../lib/motorStatus'
+import { startRecording, stopRecording, torqueOff } from '../../lib/teachServices'
 import { autoMotionFileName, sanitizeMotionFileName } from '../../lib/motionFileName'
 import { useConnectionStore } from '../../store/connectionStore'
 import { LiveWaveform } from './LiveWaveform'
@@ -11,6 +12,43 @@ import { useRecordingMonitor } from './useRecordingMonitor'
 // Long recordings can still produce large CSV files even though the browser
 // only renders a low-resolution live waveform.
 const LONG_RECORDING_SECONDS = 60
+const TORQUE_OFF_CONFIRM_TIMEOUT_MS = 3000
+
+function isTorqueOff(): boolean {
+  const statusword = useConnectionStore.getState().motorStatus?.statusword
+  return Boolean(statusword?.length) && !statusword?.some(isMotorEnabled)
+}
+
+function waitForTorqueOff(timeoutMs = TORQUE_OFF_CONFIRM_TIMEOUT_MS): Promise<boolean> {
+  if (isTorqueOff()) {
+    return Promise.resolve(true)
+  }
+
+  return new Promise((resolve) => {
+    let settled = false
+    let timer = 0
+    const finish = (confirmed: boolean) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      window.clearTimeout(timer)
+      unsubscribe()
+      resolve(confirmed)
+    }
+    const unsubscribe = useConnectionStore.subscribe(() => {
+      if (isTorqueOff()) {
+        finish(true)
+      }
+    })
+    timer = window.setTimeout(() => finish(false), timeoutMs)
+
+    // Close the gap between the first check and subscription registration.
+    if (isTorqueOff()) {
+      finish(true)
+    }
+  })
+}
 
 function formatElapsed(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
@@ -55,13 +93,52 @@ export function RecordStudio({
 
   const handleStartRecording = () =>
     run(async () => {
+      const enabledCount =
+        useConnectionStore
+          .getState()
+          .motorStatus?.statusword.filter(isMotorEnabled).length ?? 0
+      let torqueReleased = false
+
+      if (enabledCount > 0) {
+        const approved = window.confirm(
+          `모터 ${enabledCount}축의 토크가 켜져 있습니다.\n토크를 해제한 후 녹화를 시작할까요?`,
+        )
+        if (!approved) {
+          dispatch({
+            type: 'feedback',
+            message: '녹화 시작을 취소했습니다. 모터 토크는 유지됩니다.',
+          })
+          return
+        }
+
+        const torqueResponse = await torqueOff()
+        if (!torqueResponse.success) {
+          dispatch({
+            type: 'feedback',
+            message: `토크 해제 실패: ${torqueResponse.message}`,
+          })
+          return
+        }
+        if (!(await waitForTorqueOff())) {
+          dispatch({
+            type: 'feedback',
+            message: '토크 해제를 확인하지 못해 녹화를 시작하지 않았습니다.',
+          })
+          return
+        }
+        torqueReleased = true
+      }
+
       const response = await startRecording(fileName.trim())
       if (!response.success) {
         dispatch({ type: 'feedback', message: response.message })
         return
       }
       dispatch({ type: 'recording_started', file: response.file_name })
-      dispatch({ type: 'feedback', message: `녹화 시작: ${response.file_name}` })
+      dispatch({
+        type: 'feedback',
+        message: `${torqueReleased ? '토크 해제 후 ' : ''}녹화 시작: ${response.file_name}`,
+      })
     })
 
   const handleStopRecording = () =>

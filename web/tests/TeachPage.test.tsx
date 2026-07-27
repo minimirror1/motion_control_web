@@ -162,6 +162,126 @@ describe('TeachPage', () => {
     expect(screen.getByRole('button', { name: '녹화 시작' })).toBeEnabled()
   })
 
+  it('keeps torque on and cancels recording when the operator declines', async () => {
+    const callService = mockServices({
+      [`${TEACH_NODE}/list_motion_files`]: listResponse,
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    useConnectionStore.setState({
+      connected: true,
+      callService,
+      ...readyState,
+      motorStatus: { ...readyState.motorStatus, statusword: [0x0027, 0] },
+    })
+    render(<TeachPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '녹화 시작' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('teach-feedback')).toHaveTextContent(
+        '녹화 시작을 취소했습니다. 모터 토크는 유지됩니다.',
+      ),
+    )
+    expect(confirm).toHaveBeenCalledWith(
+      '모터 1축의 토크가 켜져 있습니다.\n토크를 해제한 후 녹화를 시작할까요?',
+    )
+    expect(callService).not.toHaveBeenCalledWith(
+      `${TEACH_NODE}/torque_off`,
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(callService).not.toHaveBeenCalledWith(
+      `${TEACH_NODE}/start_recording`,
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(screen.getByTestId('teach-recording-state')).toHaveTextContent('대기')
+    confirm.mockRestore()
+  })
+
+  it('releases torque and verifies feedback before starting a recording', async () => {
+    const callService = mockServices({
+      [`${TEACH_NODE}/list_motion_files`]: listResponse,
+      [`${TEACH_NODE}/torque_off`]: {
+        success: true,
+        message: 'Torque off requested',
+      },
+      [`${TEACH_NODE}/start_recording`]: {
+        success: true,
+        message: '',
+        file_name: 'safe_motion.csv',
+      },
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    useConnectionStore.setState({
+      connected: true,
+      callService,
+      ...readyState,
+      motorStatus: { ...readyState.motorStatus, statusword: [0x0027, 0x0027] },
+    })
+    render(<TeachPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '녹화 시작' }))
+    await waitFor(() =>
+      expect(callService).toHaveBeenCalledWith(
+        `${TEACH_NODE}/torque_off`,
+        'std_srvs/srv/Trigger',
+        {},
+      ),
+    )
+
+    act(() => {
+      useConnectionStore.setState({
+        motorStatus: { ...readyState.motorStatus, statusword: [0, 0] },
+      })
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('teach-recording-state')).toHaveTextContent('녹화 중'),
+    )
+    expect(screen.getByTestId('teach-feedback')).toHaveTextContent(
+      '토크 해제 후 녹화 시작: safe_motion.csv',
+    )
+    const serviceNames = callService.mock.calls.map(([name]) => name)
+    expect(serviceNames.indexOf(`${TEACH_NODE}/torque_off`)).toBeLessThan(
+      serviceNames.indexOf(`${TEACH_NODE}/start_recording`),
+    )
+    confirm.mockRestore()
+  })
+
+  it('does not record when the torque-off request fails', async () => {
+    const callService = mockServices({
+      [`${TEACH_NODE}/list_motion_files`]: listResponse,
+      [`${TEACH_NODE}/torque_off`]: {
+        success: false,
+        message: 'controller rejected request',
+      },
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    useConnectionStore.setState({
+      connected: true,
+      callService,
+      ...readyState,
+      motorStatus: { ...readyState.motorStatus, statusword: [1, 0] },
+    })
+    render(<TeachPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '녹화 시작' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('teach-feedback')).toHaveTextContent(
+        '토크 해제 실패: controller rejected request',
+      ),
+    )
+    expect(callService).not.toHaveBeenCalledWith(
+      `${TEACH_NODE}/start_recording`,
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(screen.getByTestId('teach-recording-state')).toHaveTextContent('대기')
+    confirm.mockRestore()
+  })
+
   it('blocks recording when a motor reports a fault', () => {
     useConnectionStore.setState({
       connected: true,
