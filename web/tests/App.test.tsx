@@ -38,6 +38,7 @@ describe('App', () => {
 
     const tablist = screen.getByRole('tablist')
     expect(tablist.parentElement?.firstElementChild).toBe(tablist)
+    expect(tablist.parentElement?.lastElementChild).toHaveTextContent('motion_control_web')
     expect(screen.getByTestId('connection-status')).toBeInTheDocument()
     expect(screen.getByText('모터 상태')).toBeInTheDocument()
     expect(screen.queryByText('모터 설정 마법사')).not.toBeInTheDocument()

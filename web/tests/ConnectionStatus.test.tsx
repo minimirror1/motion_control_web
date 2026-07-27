@@ -33,6 +33,22 @@ describe('ConnectionStatus', () => {
 
   it('renders a disconnected status by default', () => {
     render(<ConnectionStatus />)
-    expect(screen.getByTestId('connection-status')).toHaveTextContent('Disconnected')
+    expect(screen.getByTestId('connection-status')).toHaveAccessibleName('ROS 연결 끊김')
+  })
+
+  it('does not render the raw robot state payload', () => {
+    useConnectionStore.setState({
+      robotState: {
+        selected_robot_index: 0,
+        robot_index: [0],
+        state: [1],
+        progress: [0],
+      },
+    })
+
+    render(<ConnectionStatus />)
+
+    expect(screen.queryByTestId('robot-state')).not.toBeInTheDocument()
+    expect(screen.queryByText(/selected_robot_index/)).not.toBeInTheDocument()
   })
 })
