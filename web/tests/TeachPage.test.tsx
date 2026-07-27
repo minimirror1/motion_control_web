@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
 
@@ -92,6 +92,32 @@ describe('TeachPage', () => {
     expect(screen.getByTestId('teach-file-input')).toBeDisabled()
     expect(screen.getByTestId('teach-feedback')).toHaveTextContent(
       'ROS 연결 후 사용할 수 있습니다.',
+    )
+  })
+
+  it('walks the workflow steps from 준비 to 확인·재생', async () => {
+    useConnectionStore.setState({
+      connected: true,
+      callService: mockServices({ [`${TEACH_NODE}/list_motion_files`]: listResponse }),
+      ...readyState,
+      robotState: { ...readyState.robotState, state: [2] },
+    })
+    const { rerender } = render(<TeachPage />)
+
+    // A moving robot fails the readiness gate, so 준비 is still the open step.
+    expect(screen.getByTestId('teach-step-1')).toHaveAttribute('data-state', 'active')
+    expect(screen.getByTestId('teach-step-2')).toHaveAttribute('data-state', 'todo')
+
+    act(() => useConnectionStore.setState({ ...readyState }))
+    rerender(<TeachPage />)
+
+    // Ready, and the active file gives 확인·재생 something to work on.
+    await waitFor(() =>
+      expect(screen.getByTestId('teach-step-3')).toHaveAttribute('data-state', 'active'),
+    )
+    expect(screen.getByTestId('teach-step-1')).toHaveAttribute('data-state', 'done')
+    expect(screen.getByTestId('teach-readiness-banner')).toHaveTextContent(
+      '녹화 준비 완료',
     )
   })
 

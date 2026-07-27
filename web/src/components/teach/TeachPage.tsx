@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useReducer } from 'react'
 import { isAnyRobotOperating } from '../../lib/robotState'
+import { isReadyToRecord, readinessChecks } from '../../lib/teachReadiness'
 import { listMotionFiles, reloadConfig } from '../../lib/teachServices'
 import { useConnectionStore } from '../../store/connectionStore'
 import { MotionLibrary } from './MotionLibrary'
 import { PlaybackPanel } from './PlaybackPanel'
+import { PrepPanel } from './PrepPanel'
 import { RecordStudio } from './RecordStudio'
 import { SafetyStrip } from './SafetyStrip'
 import { initialTeachState, teachReducer } from './teachState'
 import { errorText } from './teachUi'
+import { stepStates, WorkflowSteps } from './WorkflowSteps'
 
 export function TeachPage() {
   const connected = useConnectionStore((store) => store.connected)
   const robotState = useConnectionStore((store) => store.robotState)
+  const motorStatus = useConnectionStore((store) => store.motorStatus)
+  const motorConfig = useConnectionStore((store) => store.motorConfig)
   const fetchMotorConfig = useConnectionStore((store) => store.fetchMotorConfig)
   const recordingStatus = useConnectionStore((store) => store.recordingStatus)
   const [state, dispatch] = useReducer(teachReducer, initialTeachState)
@@ -78,21 +83,38 @@ export function TeachPage() {
     }
   }, [])
 
+  const checks = readinessChecks({ connected, robotState, motorStatus, motorConfig })
+  const ready = isReadyToRecord(checks)
+  const steps = stepStates(
+    ready,
+    state.recording,
+    Boolean(state.selectedFile ?? state.activeFile),
+  )
+
   return (
     <>
       <SafetyStrip />
-      <p className="mt-2 text-xs text-slate-500">
-        조이스틱도 같은 토크 요청 토픽에 쓰기 때문에, 여기서 설정한 토크 상태가 조이스틱
-        조작으로 덮어써질 수 있습니다.
-      </p>
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RecordStudio
-          state={state}
-          dispatch={dispatch}
-          run={run}
-          refreshFiles={refreshFiles}
-          reloadAfterChange={reloadAfterChange}
-        />
+      <WorkflowSteps states={steps} />
+      {/* 준비 · 녹화·재생 · 보관함, in the order the operator works through them.
+          Stacks below xl, where three columns stop fitting. */}
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[17rem_minmax(0,1fr)_18rem]">
+        <PrepPanel checks={checks} busy={state.busy} dispatch={dispatch} run={run} />
+        <div className="flex min-w-0 flex-col gap-3">
+          <RecordStudio
+            state={state}
+            ready={ready}
+            dispatch={dispatch}
+            run={run}
+            refreshFiles={refreshFiles}
+            reloadAfterChange={reloadAfterChange}
+          />
+          <PlaybackPanel
+            state={state}
+            dispatch={dispatch}
+            run={run}
+            reloadAfterChange={reloadAfterChange}
+          />
+        </div>
         <MotionLibrary
           state={state}
           dispatch={dispatch}
@@ -102,12 +124,6 @@ export function TeachPage() {
           reloadAfterChange={reloadAfterChange}
         />
       </div>
-      <PlaybackPanel
-        state={state}
-        dispatch={dispatch}
-        run={run}
-        reloadAfterChange={reloadAfterChange}
-      />
       <p data-testid="teach-feedback" className="mt-3 min-h-5 text-xs text-slate-400">
         {connected
           ? state.feedback ?? '토크를 해제한 뒤 녹화를 시작하세요.'

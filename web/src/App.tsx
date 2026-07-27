@@ -24,7 +24,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-4">
-      <main className="mx-auto w-full max-w-5xl">
+      {/* The teach workspace is a three-column layout; the other tabs stay at
+          reading width. */}
+      <main
+        className={`mx-auto w-full ${tab === 'teach' ? 'max-w-[1600px]' : 'max-w-5xl'}`}
+      >
         <header className="flex items-center gap-3 border-b border-slate-800">
           <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="tablist">
             {TABS.map(({ id, label }) => (

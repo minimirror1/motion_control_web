@@ -49,7 +49,9 @@ export function SafetyStrip() {
   return (
     <section
       data-testid="teach-safety-strip"
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 p-3"
+      // Pinned so 정지 and the torque state stay reachable however far the
+      // operator has scrolled down the workspace.
+      className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-lg shadow-slate-950/60"
     >
       <Badge
         label="연결"

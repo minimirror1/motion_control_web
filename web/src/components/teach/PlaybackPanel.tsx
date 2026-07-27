@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ROBOT_STATE, robotStateLabel, selectedRobot } from '../../lib/robotState'
+import { robotStateLabel, selectedRobot } from '../../lib/robotState'
 import { setMoveDuration } from '../../lib/teachServices'
 import {
   CONTROL_COMMAND,
   type ControlCommand,
   useConnectionStore,
 } from '../../store/connectionStore'
-import { MotionReview } from './MotionReview'
+import { MotionReview, motionSummary } from './MotionReview'
 import type { TeachAction, TeachState } from './teachState'
 import { buttonClass } from './teachUi'
 import { useHotkey } from './useHotkey'
@@ -29,7 +29,7 @@ const TRANSPORT: Array<{
 }> = [
   {
     command: CONTROL_COMMAND.HOME,
-    label: '⌂ 홈',
+    label: '⌂ 홈 이동',
     className: 'bg-amber-600 hover:bg-amber-500',
     testId: 'teach-transport-home',
   },
@@ -77,17 +77,28 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
   useHotkey('Escape', () => send(CONTROL_COMMAND.STOP_MOTION, '⏸ 정지'), connected)
 
   return (
-    <section className="mt-4 rounded-lg border border-slate-700 bg-slate-900 p-4">
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <h2 className="text-sm font-medium text-slate-200">재생</h2>
-        <span data-testid="teach-active-file" className="truncate text-xs text-slate-400">
-          활성: {state.activeFile || '없음'}
-          {state.selectedFile && state.selectedFile !== state.activeFile && (
-            <span className="text-amber-400"> · 미리보기: {state.selectedFile}</span>
+    <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="text-sm font-semibold text-slate-100">③ 확인 · 재생</h2>
+          <span
+            data-testid="teach-active-file"
+            className="truncate text-xs font-semibold text-sky-300"
+          >
+            {state.activeFile || '없음'}
+            {state.selectedFile && state.selectedFile !== state.activeFile && (
+              <span className="text-amber-400"> · 미리보기: {state.selectedFile}</span>
+            )}
+          </span>
+          {preview.data && (
+            <span data-testid="teach-preview-summary" className="text-xs text-slate-500">
+              {motionSummary(preview.data)}
+            </span>
           )}
-        </span>
+        </div>
+        <p className="text-xs text-slate-500">재생은 정지할 때까지 반복됩니다</p>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         {TRANSPORT.map(({ command, label, className, testId }) => (
           <button
             key={command}
@@ -102,8 +113,53 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
             {label}
           </button>
         ))}
+        {baseDuration > 0 && (
+          <div className="flex min-w-[18rem] flex-1 items-center gap-2">
+            <span className="shrink-0 text-xs text-slate-400">
+              속도 {SPEED_STEPS[speedIndex]}x
+            </span>
+            <input
+              type="range"
+              data-testid="teach-speed-slider"
+              min={0}
+              max={SPEED_STEPS.length - 1}
+              step={1}
+              value={speedIndex}
+              disabled={!transportEnabled}
+              onChange={(event) => setSpeedIndex(Number(event.target.value))}
+              className="min-w-0 flex-1 accent-blue-500 disabled:cursor-not-allowed"
+            />
+            <span className="shrink-0 text-xs tabular-nums text-slate-400">
+              {(baseDuration / SPEED_STEPS[speedIndex]).toFixed(1)}초
+            </span>
+            <button
+              type="button"
+              data-testid="teach-speed-apply"
+              disabled={!transportEnabled || state.busy}
+              onClick={() =>
+                run(async () => {
+                  const response = await setMoveDuration(
+                    baseDuration / SPEED_STEPS[speedIndex],
+                  )
+                  if (!response.success) {
+                    dispatch({ type: 'feedback', message: response.message })
+                    return
+                  }
+                  const suffix = await reloadAfterChange()
+                  dispatch({
+                    type: 'feedback',
+                    message: `재생 속도 ${SPEED_STEPS[speedIndex]}x 적용${suffix}`,
+                  })
+                })
+              }
+              className="shrink-0 rounded-md bg-slate-600 px-2 py-1 text-xs font-semibold text-white transition hover:bg-slate-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              속도 적용
+            </button>
+          </div>
+        )}
       </div>
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-3 flex items-center gap-3">
         <span
           data-testid="teach-robot-state"
           className="shrink-0 text-xs font-semibold text-slate-300"
@@ -126,49 +182,6 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
           {percent === null ? '—' : `${percent.toFixed(0)}%`}
         </span>
       </div>
-      {baseDuration > 0 && (
-        <div className="mt-4 flex items-center gap-3">
-          <span className="shrink-0 text-xs text-slate-400">재생 속도</span>
-          <input
-            type="range"
-            data-testid="teach-speed-slider"
-            min={0}
-            max={SPEED_STEPS.length - 1}
-            step={1}
-            value={speedIndex}
-            disabled={!transportEnabled}
-            onChange={(event) => setSpeedIndex(Number(event.target.value))}
-            className="flex-1 accent-blue-500 disabled:cursor-not-allowed"
-          />
-          <span className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-400">
-            {SPEED_STEPS[speedIndex]}x · {(baseDuration / SPEED_STEPS[speedIndex]).toFixed(1)}초
-          </span>
-          <button
-            type="button"
-            data-testid="teach-speed-apply"
-            disabled={!transportEnabled || state.busy}
-            onClick={() =>
-              run(async () => {
-                const response = await setMoveDuration(
-                  baseDuration / SPEED_STEPS[speedIndex],
-                )
-                if (!response.success) {
-                  dispatch({ type: 'feedback', message: response.message })
-                  return
-                }
-                const suffix = await reloadAfterChange()
-                dispatch({
-                  type: 'feedback',
-                  message: `재생 속도 ${SPEED_STEPS[speedIndex]}x 적용${suffix}`,
-                })
-              })
-            }
-            className="shrink-0 rounded-md bg-slate-600 px-2 py-1 text-xs font-semibold text-white transition hover:bg-slate-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-          >
-            속도 적용
-          </button>
-        </div>
-      )}
       {preview.data ? (
         <MotionReview data={preview.data} />
       ) : (
@@ -180,10 +193,8 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
               : preview.error ?? '표시할 모션이 없습니다.'}
         </p>
       )}
-      <p className="mt-3 text-xs text-slate-500">
-        재생은 정지할 때까지 반복됩니다. 정지는 일시정지이며, 다음 재생은 멈춘 지점부터
-        이어집니다.
-        {robotMode === ROBOT_STATE.OPERATING && ' 현재 반복 재생 중입니다.'}
+      <p className="mt-3 text-xs text-slate-600">
+        정지는 일시정지이며, 다음 재생은 멈춘 지점부터 이어집니다.
       </p>
     </section>
   )

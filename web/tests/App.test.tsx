@@ -51,8 +51,8 @@ describe('App', () => {
 
     expect(screen.getByTestId('connection-status')).toBeInTheDocument()
     expect(screen.queryByText('모터 상태')).not.toBeInTheDocument()
-    expect(screen.getByText('녹화 스튜디오')).toBeInTheDocument()
-    expect(screen.getByText('모션 라이브러리')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '② 녹화' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '보관함' })).toBeInTheDocument()
   })
 
   it('switches to the motor settings tab while keeping ConnectionStatus visible', () => {
