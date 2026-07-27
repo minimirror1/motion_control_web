@@ -25,9 +25,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-950 p-4">
       <main className="mx-auto w-full max-w-5xl">
-        <h1 className="mb-4 text-xl font-semibold text-slate-100">motion_control_web</h1>
-        <ConnectionStatus />
-        <nav className="mt-4 flex gap-2 border-b border-slate-800" role="tablist">
+        <nav className="mb-4 flex gap-2 border-b border-slate-800" role="tablist">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
@@ -46,6 +44,8 @@ function App() {
             </button>
           ))}
         </nav>
+        <h1 className="mb-4 text-xl font-semibold text-slate-100">motion_control_web</h1>
+        <ConnectionStatus />
         <div className="mt-4">
           <Page />
         </div>

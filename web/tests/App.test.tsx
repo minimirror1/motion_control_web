@@ -36,6 +36,8 @@ describe('App', () => {
   it('defaults to the dashboard tab', () => {
     render(<App />)
 
+    const tablist = screen.getByRole('tablist')
+    expect(tablist.parentElement?.firstElementChild).toBe(tablist)
     expect(screen.getByTestId('connection-status')).toBeInTheDocument()
     expect(screen.getByText('모터 상태')).toBeInTheDocument()
     expect(screen.queryByText('모터 설정 마법사')).not.toBeInTheDocument()
