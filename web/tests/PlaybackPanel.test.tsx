@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('roslib', () => ({
@@ -38,10 +38,35 @@ describe('PlaybackPanel', () => {
     render(<PlaybackPanel state={initialTeachState} dispatch={vi.fn()} {...panelProps} />)
 
     expect(screen.getByTestId('teach-transport-home')).toBeDisabled()
+    expect(screen.getByTestId('teach-transport-move-to-start')).toBeDisabled()
     expect(screen.getByTestId('teach-transport-play')).toBeDisabled()
     expect(screen.getByTestId('teach-transport-stop')).toBeDisabled()
     expect(screen.getByTestId('teach-progress-value')).toHaveTextContent('—')
     expect(screen.getByTestId('teach-robot-state')).toHaveTextContent('상태 대기 중')
+  })
+
+  it('disables move-to-start while no motion is active, even when connected', () => {
+    useConnectionStore.setState({ connected: true })
+    render(<PlaybackPanel state={initialTeachState} dispatch={vi.fn()} {...panelProps} />)
+
+    expect(screen.getByTestId('teach-transport-move-to-start')).toBeDisabled()
+    expect(screen.getByTestId('teach-transport-home')).not.toBeDisabled()
+  })
+
+  it('enables move-to-start once a motion is active', async () => {
+    useConnectionStore.setState({ connected: true })
+    render(
+      <PlaybackPanel
+        state={{ ...initialTeachState, activeFile: 'demo.csv' }}
+        dispatch={vi.fn()}
+        {...panelProps}
+      />,
+    )
+    // Flush the motion-preview fetch kicked off by a non-empty activeFile so
+    // its state update lands inside act() instead of after the test ends.
+    await act(async () => {})
+
+    expect(screen.getByTestId('teach-transport-move-to-start')).not.toBeDisabled()
   })
 
   it('renders the selected robot progress and decoded state', () => {

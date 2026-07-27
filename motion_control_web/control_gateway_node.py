@@ -12,11 +12,13 @@ COMMAND_PLAY_MOTION = 2
 COMMAND_STOP_MOTION = 3
 COMMAND_HOME = 4
 COMMAND_DISABLE_MOTORS = 5
+COMMAND_MOVE_TO_START = 6
 
 JOY_BUTTON_CROSS = 0
 JOY_BUTTON_CIRCLE = 1
 JOY_BUTTON_TRIANGLE = 2
 JOY_BUTTON_SQUARE = 3
+JOY_BUTTON_L1 = 6
 JOY_BUTTON_START = 9
 JOY_BUTTON_COUNT = 10
 
@@ -26,6 +28,7 @@ COMMAND_BUTTONS = {
     COMMAND_STOP_MOTION: JOY_BUTTON_SQUARE,
     COMMAND_HOME: JOY_BUTTON_TRIANGLE,
     COMMAND_DISABLE_MOTORS: JOY_BUTTON_CROSS,
+    COMMAND_MOVE_TO_START: JOY_BUTTON_L1,
 }
 
 COMMAND_NAMES = {
@@ -34,6 +37,7 @@ COMMAND_NAMES = {
     COMMAND_STOP_MOTION: 'stop_motion',
     COMMAND_HOME: 'home',
     COMMAND_DISABLE_MOTORS: 'disable_motors',
+    COMMAND_MOVE_TO_START: 'move_to_start',
 }
 
 
@@ -79,7 +83,7 @@ class ControlGatewayNode(Node):
         self.get_logger().info(
             f'control_gateway_node up: {self.input_topic} -> {self.output_topic} '
             f'(commands: 1=enable motors, 2=play motion, 3=stop motion, '
-            f'4=home, 5=disable motors)'
+            f'4=home, 5=disable motors, 6=move to start)'
         )
 
     def _on_command(self, msg: UInt8) -> None:

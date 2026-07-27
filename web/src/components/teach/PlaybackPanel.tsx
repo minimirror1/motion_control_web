@@ -34,6 +34,12 @@ const TRANSPORT: Array<{
     testId: 'teach-transport-home',
   },
   {
+    command: CONTROL_COMMAND.MOVE_TO_START,
+    label: '⏮ 시작 위치',
+    className: 'bg-teal-600 hover:bg-teal-500',
+    testId: 'teach-transport-move-to-start',
+  },
+  {
     command: CONTROL_COMMAND.PLAY_MOTION,
     label: '▶ 재생',
     className: 'bg-blue-600 hover:bg-blue-500',
@@ -110,7 +116,12 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
             data-testid={testId}
             // Playing while a recording is in flight would fight the operator's
             // hands on the arm.
-            disabled={!transportEnabled}
+            // Moving to the start of a motion needs a motion actually loaded
+            // on the robot - unlike home, there's no fixed fallback target.
+            disabled={
+              !transportEnabled ||
+              (command === CONTROL_COMMAND.MOVE_TO_START && !state.activeFile)
+            }
             onClick={() => send(command, label)}
             className={buttonClass(className)}
           >

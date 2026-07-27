@@ -50,6 +50,7 @@ export const CONTROL_COMMAND = {
   STOP_MOTION: 3,
   HOME: 4,
   DISABLE_MOTORS: 5,
+  MOVE_TO_START: 6,
 } as const
 
 export type ControlCommand =
