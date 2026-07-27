@@ -8,7 +8,13 @@ declare module 'roslib' {
   }
 
   export class Topic<T = Record<string, unknown>> {
-    constructor(options: { ros: Ros; name: string; messageType: string })
+    constructor(options: {
+      ros: Ros
+      name: string
+      messageType: string
+      throttle_rate?: number
+      queue_length?: number
+    })
     subscribe(callback: (message: T) => void): void
     unsubscribe(): void
     publish(message: T): void

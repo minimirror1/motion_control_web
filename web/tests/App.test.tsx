@@ -41,6 +41,17 @@ describe('App', () => {
     expect(screen.queryByText('모터 설정 마법사')).not.toBeInTheDocument()
   })
 
+  it('switches to the teach tab while keeping ConnectionStatus visible', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('app-tab-teach'))
+
+    expect(screen.getByTestId('connection-status')).toBeInTheDocument()
+    expect(screen.queryByText('모터 상태')).not.toBeInTheDocument()
+    expect(screen.getByText('녹화 스튜디오')).toBeInTheDocument()
+    expect(screen.getByText('모션 라이브러리')).toBeInTheDocument()
+  })
+
   it('switches to the motor settings tab while keeping ConnectionStatus visible', () => {
     render(<App />)
 

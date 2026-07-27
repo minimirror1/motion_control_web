@@ -1,0 +1,71 @@
+export interface TeachState {
+  files: string[]
+  activeFile: string
+  selectedFile: string | null
+  recording: boolean
+  recordingFile: string | null
+  busy: boolean
+  feedback: string | null
+  /** Bumped to force the preview to re-fetch after the file changed on disk. */
+  previewVersion: number
+}
+
+export type TeachAction =
+  | { type: 'files_loaded'; files: string[]; activeFile: string }
+  | { type: 'select_file'; file: string | null }
+  | { type: 'recording_started'; file: string }
+  | { type: 'recording_stopped' }
+  | { type: 'recording_status'; active: boolean; file: string }
+  | { type: 'busy'; busy: boolean }
+  | { type: 'feedback'; message: string }
+
+export const initialTeachState: TeachState = {
+  files: [],
+  activeFile: '',
+  selectedFile: null,
+  recording: false,
+  recordingFile: null,
+  busy: false,
+  feedback: null,
+  previewVersion: 0,
+}
+
+export function teachReducer(state: TeachState, action: TeachAction): TeachState {
+  switch (action.type) {
+    case 'files_loaded': {
+      // Drop a selection whose file disappeared (deleted or renamed elsewhere).
+      const selectedFile =
+        state.selectedFile && action.files.includes(state.selectedFile)
+          ? state.selectedFile
+          : null
+      return {
+        ...state,
+        files: action.files,
+        activeFile: action.activeFile,
+        selectedFile,
+        previewVersion: state.previewVersion + 1,
+      }
+    }
+    case 'select_file':
+      return { ...state, selectedFile: action.file }
+    case 'recording_started':
+      return { ...state, recording: true, recordingFile: action.file }
+    case 'recording_stopped':
+      return { ...state, recording: false, recordingFile: null }
+    // The node is the source of truth, so a page reload (or a second tab) picks
+    // up a recording this client never started.
+    case 'recording_status':
+      if (state.recording === action.active) {
+        return state
+      }
+      return {
+        ...state,
+        recording: action.active,
+        recordingFile: action.active ? action.file : null,
+      }
+    case 'busy':
+      return { ...state, busy: action.busy }
+    case 'feedback':
+      return { ...state, feedback: action.message }
+  }
+}

@@ -15,6 +15,13 @@ export interface RobotState {
   progress: number[]
 }
 
+export interface RecordingStatus {
+  active: boolean
+  elapsed: number
+  file_name: string
+  sample_count: number
+}
+
 export interface MotorStatus {
   controller_index: number[]
   controlword: number[]
@@ -49,6 +56,9 @@ export type ControlCommand =
   (typeof CONTROL_COMMAND)[keyof typeof CONTROL_COMMAND]
 
 const SERVICE_CALL_TIMEOUT_MS = 10_000
+// The hardware publishes motor_status at ~1 kHz. The browser only needs a
+// display-rate stream; recording remains at the full rate inside the ROS node.
+const MOTOR_STATUS_THROTTLE_MS = 50
 
 interface ConnectionStore {
   connected: boolean
@@ -56,6 +66,7 @@ interface ConnectionStore {
   robotState: RobotState | null
   motorStatus: MotorStatus | null
   motorConfig: MotorConfigEntry[] | null
+  recordingStatus: RecordingStatus | null
   controlCommandTopic: Topic<UInt8Message> | null
   connect: () => void
   sendControlCommand: (command: ControlCommand) => boolean
@@ -73,6 +84,7 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
   robotState: null,
   motorStatus: null,
   motorConfig: null,
+  recordingStatus: null,
   controlCommandTopic: null,
   connect: () => {
     if (get().ros) {
@@ -81,8 +93,8 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
 
     const ros = createRosConnection(
       () => set({ connected: true }),
-      () => set({ connected: false, motorStatus: null }),
-      () => set({ connected: false, motorStatus: null }),
+      () => set({ connected: false, motorStatus: null, recordingStatus: null }),
+      () => set({ connected: false, motorStatus: null, recordingStatus: null }),
     )
 
     // motion_control/robot_state (motion_control_robot/robot_manager_node.py) is
@@ -101,6 +113,8 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       ros,
       name: 'motion_control/motor_status',
       messageType: 'motion_control_msgs/MotorStatus',
+      throttle_rate: MOTOR_STATUS_THROTTLE_MS,
+      queue_length: 1,
     })
     motorStatusTopic.subscribe((message) =>
       set({
@@ -116,6 +130,15 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
         },
       }),
     )
+
+    // Published transient-local at 1 Hz by motion_control_teach_node so a
+    // reloaded page learns about a recording that is already running.
+    const recordingStatusTopic = new Topic<RecordingStatus>({
+      ros,
+      name: '/motion_control_teach_node/recording_status',
+      messageType: 'motion_control_msgs/RecordingStatus',
+    })
+    recordingStatusTopic.subscribe((message) => set({ recordingStatus: message }))
 
     const controlCommandTopic = new Topic<UInt8Message>({
       ros,

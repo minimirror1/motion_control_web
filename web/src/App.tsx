@@ -2,16 +2,25 @@ import { useState } from 'react'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { DashboardPage } from './components/DashboardPage'
 import { MotorSettingsPage } from './components/motorSettings/MotorSettingsPage'
+import { TeachPage } from './components/teach/TeachPage'
 
-type Tab = 'dashboard' | 'motor-settings'
+type Tab = 'dashboard' | 'teach' | 'motor-settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'dashboard', label: '대시보드' },
+  { id: 'teach', label: '모션 티칭' },
   { id: 'motor-settings', label: '모터 설정' },
 ]
 
+const PAGES: Record<Tab, () => JSX.Element> = {
+  dashboard: DashboardPage,
+  teach: TeachPage,
+  'motor-settings': MotorSettingsPage,
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
+  const Page = PAGES[tab]
 
   return (
     <div className="min-h-screen bg-slate-950 p-4">
@@ -38,7 +47,7 @@ function App() {
           ))}
         </nav>
         <div className="mt-4">
-          {tab === 'dashboard' ? <DashboardPage /> : <MotorSettingsPage />}
+          <Page />
         </div>
       </main>
     </div>

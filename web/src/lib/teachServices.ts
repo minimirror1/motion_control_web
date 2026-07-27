@@ -1,3 +1,4 @@
+import type { GetMotionDataResponse } from './motionData'
 import { useConnectionStore } from '../store/connectionStore'
 
 const TEACH_NODE = '/motion_control_teach_node'
@@ -67,6 +68,47 @@ export function setActiveMotion(fileName: string): Promise<TriggerResponse> {
     `${TEACH_NODE}/set_active_motion`,
     'motion_control_msgs/srv/SetActiveMotion',
     { file_name: fileName },
+  )
+}
+
+export interface RenameMotionFileResponse extends TriggerResponse {
+  resolved_name: string
+}
+
+export function getMotionData(
+  fileName: string,
+  maxSamples: number,
+): Promise<GetMotionDataResponse> {
+  return call(`${TEACH_NODE}/get_motion_data`, 'motion_control_msgs/srv/GetMotionData', {
+    file_name: fileName,
+    max_samples: maxSamples,
+  })
+}
+
+export function deleteMotionFile(fileName: string): Promise<TriggerResponse> {
+  return call(
+    `${TEACH_NODE}/delete_motion_file`,
+    'motion_control_msgs/srv/DeleteMotionFile',
+    { file_name: fileName },
+  )
+}
+
+export function renameMotionFile(
+  fileName: string,
+  newName: string,
+): Promise<RenameMotionFileResponse> {
+  return call(
+    `${TEACH_NODE}/rename_motion_file`,
+    'motion_control_msgs/srv/RenameMotionFile',
+    { file_name: fileName, new_name: newName },
+  )
+}
+
+export function setMoveDuration(duration: number): Promise<TriggerResponse> {
+  return call(
+    `${TEACH_NODE}/set_move_duration`,
+    'motion_control_msgs/srv/SetMoveDuration',
+    { duration },
   )
 }
 
