@@ -84,8 +84,7 @@ describe('TeachPage', () => {
   it('disables all controls while disconnected', () => {
     render(<TeachPage />)
 
-    expect(screen.getByRole('button', { name: '토크 해제' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '토크 온' })).toBeDisabled()
+    expect(screen.getByTestId('teach-torque-toggle')).toBeDisabled()
     expect(screen.getByRole('button', { name: '녹화 시작' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '녹화 종료' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '목록 새로고침' })).toBeDisabled()

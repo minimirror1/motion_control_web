@@ -1,4 +1,5 @@
 import { jointLimits } from '../../lib/jointLimits'
+import { isMotorEnabled } from '../../lib/motorStatus'
 import type { ReadinessCheck } from '../../lib/teachReadiness'
 import { torqueOff, torqueOn } from '../../lib/teachServices'
 import { useConnectionStore } from '../../store/connectionStore'
@@ -46,15 +47,14 @@ export function PrepPanel({ checks, busy, dispatch, run }: Props) {
   const limits = jointLimits(motorStatus, motorConfig)
   const { tone, glyph, text } = banner(checks)
 
-  const handleTorqueOff = () =>
-    run(async () => {
-      const response = await torqueOff()
-      dispatch({ type: 'feedback', message: response.message })
-    })
+  // Mirrors SafetyStrip's torqueSummary: any enabled motor counts as "on", so
+  // the button always offers the opposite of what is currently true.
+  const statusword = motorStatus?.statusword
+  const torqueOn_ = Boolean(statusword?.some(isMotorEnabled))
 
-  const handleTorqueOn = () =>
+  const handleToggleTorque = () =>
     run(async () => {
-      const response = await torqueOn()
+      const response = torqueOn_ ? await torqueOff() : await torqueOn()
       dispatch({ type: 'feedback', message: response.message })
     })
 
@@ -67,22 +67,21 @@ export function PrepPanel({ checks, busy, dispatch, run }: Props) {
         <p className="mt-0.5 text-xs text-slate-500">
           토크를 해제하면 손으로 자세를 잡을 수 있습니다
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3">
           <button
             type="button"
+            data-testid="teach-torque-toggle"
             disabled={!connected || busy}
-            onClick={handleTorqueOff}
-            className={buttonClass('bg-amber-600 hover:bg-amber-500')}
+            onClick={handleToggleTorque}
+            className={buttonClass(
+              `w-full ${
+                torqueOn_
+                  ? 'bg-amber-600 hover:bg-amber-500'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`,
+            )}
           >
-            토크 해제
-          </button>
-          <button
-            type="button"
-            disabled={!connected || busy}
-            onClick={handleTorqueOn}
-            className={buttonClass('bg-emerald-600 hover:bg-emerald-500')}
-          >
-            토크 온
+            {torqueOn_ ? '토크 해제' : '토크 온'}
           </button>
         </div>
         <p
