@@ -28,6 +28,7 @@ interface WizardState {
   activeConfig: MotorManagerConfig | null
   loadError: string | null
   draft: MotorManagerConfig | null
+  draftBaseline: Driver[]
   saving: boolean
   saveMessage: string | null
   saveError: string | null
@@ -53,6 +54,7 @@ const initialState: WizardState = {
   activeConfig: null,
   loadError: null,
   draft: null,
+  draftBaseline: [],
   saving: false,
   saveMessage: null,
   saveError: null,
@@ -67,7 +69,14 @@ function reducer(state: WizardState, action: Action): WizardState {
     case 'LOADED_TEMPLATES':
       return { ...state, templates: action.templates }
     case 'START_DRAFT':
-      return { ...state, draft: action.config, step: 2, saveMessage: null, saveError: null }
+      return {
+        ...state,
+        draft: action.config,
+        draftBaseline: action.config.drivers,
+        step: 2,
+        saveMessage: null,
+        saveError: null,
+      }
     case 'SET_MASTER':
       if (!state.draft) return state
       return { ...state, draft: { ...state.draft, masters: [action.master] } }
@@ -209,6 +218,7 @@ export function MotorSettingsPage() {
         {state.step === 3 && state.draft && (
           <DriversStep
             drivers={state.draft.drivers}
+            baselineDrivers={state.draftBaseline}
             slaves={state.draft.masters[0]?.slaves ?? []}
             onChange={(drivers) => dispatch({ type: 'SET_DRIVERS', drivers })}
             onPrev={() => dispatch({ type: 'GOTO_STEP', step: 2 })}
