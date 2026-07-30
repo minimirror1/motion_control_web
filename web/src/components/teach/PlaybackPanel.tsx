@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { robotStateLabel, selectedRobot } from '../../lib/robotState'
+import { ROBOT_STATE, robotStateLabel, selectedRobot } from '../../lib/robotState'
 import { setMoveDuration } from '../../lib/teachServices'
 import {
   CONTROL_COMMAND,
@@ -70,10 +70,22 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
   // The recorded duration is the 1x reference; the slider scales it.
   const baseDuration = preview.data?.duration ?? 0
   const [speedIndex, setSpeedIndex] = useState(SPEED_STEPS.indexOf(1))
+  // Keep the last running location when the robot is stopped. The scheduler's
+  // stopped state reports a reset progress value, but playback itself resumes
+  // from the paused location, so moving the chart cursor back to zero would be
+  // misleading.
+  const [trajectoryProgress, setTrajectoryProgress] = useState<number | null>(null)
   useEffect(() => setSpeedIndex(SPEED_STEPS.indexOf(1)), [previewFile])
+  useEffect(() => setTrajectoryProgress(null), [previewFile, state.previewVersion])
 
   const { state: robotMode, progress } = selectedRobot(robotState)
   const percent = progress === null ? null : Math.min(100, Math.max(0, progress * 100))
+
+  useEffect(() => {
+    if (robotMode === ROBOT_STATE.OPERATING && progress !== null) {
+      setTrajectoryProgress(Math.min(1, Math.max(0, progress)))
+    }
+  }, [robotMode, progress])
 
   const send = (command: ControlCommand, label: string) => {
     if (sendControlCommand(command)) {
@@ -198,7 +210,12 @@ export function PlaybackPanel({ state, dispatch, run, reloadAfterChange }: Props
         </span>
       </div>
       {preview.data ? (
-        <MotionReview data={preview.data} />
+        <MotionReview
+          data={preview.data}
+          // A library preview can differ from the active motion. Do not show a
+          // live playback position on a graph for a file the robot is not using.
+          playbackProgress={previewFile === state.activeFile ? trajectoryProgress : null}
+        />
       ) : (
         <p data-testid="teach-preview-status" className="mt-3 text-xs text-slate-500">
           {!connected

@@ -34,7 +34,13 @@ function Warning({ testId, children }: { testId: string; children: React.ReactNo
   )
 }
 
-export function MotionReview({ data }: { data: MotionData }) {
+export function MotionReview({
+  data,
+  playbackProgress,
+}: {
+  data: MotionData
+  playbackProgress?: number | null
+}) {
   const motorStatus = useConnectionStore((store) => store.motorStatus)
   const motorConfig = useConnectionStore((store) => store.motorConfig)
   const [visible, setVisible] = useState<boolean[]>([])
@@ -116,6 +122,7 @@ export function MotionReview({ data }: { data: MotionData }) {
           data={toWaveformData(data)}
           labels={data.controllerIndices.map((index) => `J${index}`)}
           visible={visible}
+          playbackProgress={playbackProgress}
           height={260}
           testId="teach-preview-chart"
         />

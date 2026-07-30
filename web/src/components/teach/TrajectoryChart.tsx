@@ -29,6 +29,12 @@ interface Props {
   labels: string[]
   /** Series index -> visible. Hidden series stay in the data but are not drawn. */
   visible?: boolean[]
+  /**
+   * Normalized playback position (0 at the first sample, 1 at the last).
+   * This is drawn independently of uPlot's mouse cursor so the operator can
+   * keep seeing playback progress while inspecting the chart.
+   */
+  playbackProgress?: number | null
   height?: number
   testId?: string
 }
@@ -37,11 +43,16 @@ export function TrajectoryChart({
   data,
   labels,
   visible,
+  playbackProgress,
   height = 180,
   testId,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const plotRef = useRef<uPlot | null>(null)
+  const dataRef = useRef(data)
+  const playbackProgressRef = useRef<number | null>(playbackProgress ?? null)
+  dataRef.current = data
+  playbackProgressRef.current = playbackProgress ?? null
   // uPlot is destroyed and rebuilt only when the series layout changes; data and
   // visibility updates go through the imperative API to avoid canvas churn.
   const layoutKey = labels.join('|')
@@ -68,6 +79,47 @@ export function TrajectoryChart({
             width: 1.5,
           })),
         ],
+        plugins: [
+          {
+            hooks: {
+              draw: [
+                (currentPlot) => {
+                  const progress = playbackProgressRef.current
+                  const time = dataRef.current[0]
+                  if (progress === null || time.length === 0) {
+                    return
+                  }
+
+                  // Playback advances through sample indices uniformly. Convert
+                  // that index back to the displayed time axis, which may have
+                  // non-uniform recorded timestamps.
+                  const sampleIndex = Math.min(
+                    time.length - 1,
+                    Math.max(0, progress) * (time.length - 1),
+                  )
+                  const lowerIndex = Math.floor(sampleIndex)
+                  const upperIndex = Math.min(lowerIndex + 1, time.length - 1)
+                  const ratio = sampleIndex - lowerIndex
+                  const value =
+                    time[lowerIndex] + (time[upperIndex] - time[lowerIndex]) * ratio
+                  const x = currentPlot.valToPos(value, 'x', true)
+                  const { ctx, bbox } = currentPlot
+
+                  ctx.save()
+                  ctx.strokeStyle = '#f8fafc'
+                  ctx.globalAlpha = 0.9
+                  ctx.lineWidth = 1.5
+                  ctx.setLineDash([5, 4])
+                  ctx.beginPath()
+                  ctx.moveTo(x, bbox.top)
+                  ctx.lineTo(x, bbox.top + bbox.height)
+                  ctx.stroke()
+                  ctx.restore()
+                },
+              ],
+            },
+          },
+        ],
       },
       data as uPlot.AlignedData,
       container,
@@ -90,6 +142,12 @@ export function TrajectoryChart({
   useEffect(() => {
     plotRef.current?.setData(data as uPlot.AlignedData)
   }, [data])
+
+  useEffect(() => {
+    // The plugin reads the latest ref values. Reusing the already-built paths
+    // keeps live playback updates inexpensive.
+    plotRef.current?.redraw(false, false)
+  }, [playbackProgress])
 
   useEffect(() => {
     const plot = plotRef.current
