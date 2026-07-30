@@ -66,6 +66,17 @@ describe('jointLimits', () => {
     expect(jointsAtLimit(limits)).toEqual([])
   })
 
+  it('adds the last motor command by controller index, independently of status order', () => {
+    const limits = jointLimits(status, [config(0, -1, 1), config(1, -1, 1)], {
+      controller_index: [1, 0],
+      position: [0.75, -0.5],
+    })
+
+    expect(limits[0]).toMatchObject({ commandedPosition: -0.5, commandedPercent: 25 })
+    expect(limits[1]).toMatchObject({ commandedPosition: 0.75, commandedPercent: 87.5 })
+    expect(limits[2]).toMatchObject({ commandedPosition: null, commandedPercent: null })
+  })
+
   it('returns nothing without motor status', () => {
     expect(jointLimits(null, [config(0, -1, 1)])).toEqual([])
   })

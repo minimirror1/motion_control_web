@@ -1,15 +1,17 @@
 import { findMotorConfig, type MotorConfigEntry } from './motorConfig'
 import { positionGaugePercent } from './motorStatus'
-import type { MotorStatus } from '../store/connectionStore'
+import type { MotorCommand, MotorStatus } from '../store/connectionStore'
 
 export type LimitStatus = 'unknown' | 'ok' | 'near' | 'over'
 
 export interface JointLimit {
   controllerIndex: number
   position: number
+  commandedPosition: number | null
   lower: number | null
   upper: number | null
   percent: number | null
+  commandedPercent: number | null
   status: LimitStatus
 }
 
@@ -35,29 +37,40 @@ export function limitStatus(
 export function jointLimits(
   motorStatus: MotorStatus | null,
   motorConfig: MotorConfigEntry[] | null,
+  motorCommand: MotorCommand | null = null,
 ): JointLimit[] {
   if (!motorStatus) {
     return []
   }
   return motorStatus.controller_index.map((controllerIndex, i) => {
     const position = motorStatus.position[i] ?? 0
+    const commandIndex = motorCommand?.controller_index.indexOf(controllerIndex) ?? -1
+    const commandedPosition =
+      commandIndex >= 0 ? (motorCommand?.position[commandIndex] ?? null) : null
     const config = findMotorConfig(motorConfig, controllerIndex)
     if (!config) {
       return {
         controllerIndex,
         position,
+        commandedPosition,
         lower: null,
         upper: null,
         percent: null,
+        commandedPercent: null,
         status: 'unknown' as const,
       }
     }
     return {
       controllerIndex,
       position,
+      commandedPosition,
       lower: config.lower,
       upper: config.upper,
       percent: positionGaugePercent(position, config.lower, config.upper),
+      commandedPercent:
+        commandedPosition === null
+          ? null
+          : positionGaugePercent(commandedPosition, config.lower, config.upper),
       status: limitStatus(position, config.lower, config.upper),
     }
   })

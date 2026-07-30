@@ -42,9 +42,10 @@ function banner(checks: ReadinessCheck[]) {
 export function PrepPanel({ checks, busy, dispatch, run }: Props) {
   const connected = useConnectionStore((store) => store.connected)
   const motorStatus = useConnectionStore((store) => store.motorStatus)
+  const motorCommand = useConnectionStore((store) => store.motorCommand)
   const motorConfig = useConnectionStore((store) => store.motorConfig)
 
-  const limits = jointLimits(motorStatus, motorConfig)
+  const limits = jointLimits(motorStatus, motorConfig, motorCommand)
   const { tone, glyph, text } = banner(checks)
 
   // Mirrors SafetyStrip's torqueSummary: any enabled motor counts as "on", so

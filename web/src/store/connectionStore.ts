@@ -33,10 +33,20 @@ export interface MotorStatus {
   effort: number[]
 }
 
+/** Last position targets published to the motor manager. */
+export interface MotorCommand {
+  controller_index: number[]
+  position: number[]
+}
+
 // Wire shape from rosbridge: `state` (uint8[]) arrives base64-encoded, see
 // lib/rosbridgeCodec.ts.
 type RobotStateWireMessage = Omit<RobotState, 'state'> & { state: string | number[] }
 type MotorStatusWireMessage = Omit<MotorStatus, 'controller_index'> & {
+  controller_index: string | number[]
+}
+
+type MotorCommandWireMessage = Omit<MotorCommand, 'controller_index'> & {
   controller_index: string | number[]
 }
 
@@ -66,6 +76,7 @@ interface ConnectionStore {
   ros: Ros | null
   robotState: RobotState | null
   motorStatus: MotorStatus | null
+  motorCommand: MotorCommand | null
   motorConfig: MotorConfigEntry[] | null
   recordingStatus: RecordingStatus | null
   controlCommandTopic: Topic<UInt8Message> | null
@@ -84,6 +95,7 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
   ros: null,
   robotState: null,
   motorStatus: null,
+  motorCommand: null,
   motorConfig: null,
   recordingStatus: null,
   controlCommandTopic: null,
@@ -94,8 +106,10 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
 
     const ros = createRosConnection(
       () => set({ connected: true }),
-      () => set({ connected: false, motorStatus: null, recordingStatus: null }),
-      () => set({ connected: false, motorStatus: null, recordingStatus: null }),
+      () =>
+        set({ connected: false, motorStatus: null, motorCommand: null, recordingStatus: null }),
+      () =>
+        set({ connected: false, motorStatus: null, motorCommand: null, recordingStatus: null }),
     )
 
     // motion_control/robot_state (motion_control_robot/robot_manager_node.py) is
@@ -128,6 +142,25 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
           position: message.position,
           velocity: message.velocity,
           effort: message.effort,
+        },
+      }),
+    )
+
+    // This is the target that the robot manager sent to the motor manager, not
+    // encoder feedback. Keeping it separate lets the teach view reveal tracking
+    // error while a motion is running.
+    const motorCommandTopic = new Topic<MotorCommandWireMessage>({
+      ros,
+      name: 'motion_control/motor_command',
+      messageType: 'motion_control_msgs/MotorStatus',
+      throttle_rate: MOTOR_STATUS_THROTTLE_MS,
+      queue_length: 1,
+    })
+    motorCommandTopic.subscribe((message) =>
+      set({
+        motorCommand: {
+          controller_index: decodeByteArray(message.controller_index),
+          position: message.position,
         },
       }),
     )
