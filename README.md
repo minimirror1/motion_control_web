@@ -75,6 +75,8 @@ source install/setup.bash
 # real robot stack (rosbridge + web_video_server + safety_gateway_node
 # + motion_control_teach_node; requires the workspace's motion_control_teach package)
 ros2 launch motion_control_web motion_control_web.launch.py
+# This also starts Vite on http://<robot-ip>:5173 by default.
+# To run only the ROS nodes: ros2 launch motion_control_web motion_control_web.launch.py start_web:=false
 
 # OR: offline dev stack (rosbridge + fake RobotState/MotorStatus publisher)
 ros2 launch motion_control_web mock_dev.launch.py
@@ -174,6 +176,8 @@ source install/setup.bash
 # 실제 로봇 스택 (rosbridge + web_video_server + safety_gateway_node
 # + motion_control_teach_node; 워크스페이스의 motion_control_teach 패키지 필요)
 ros2 launch motion_control_web motion_control_web.launch.py
+# 기본으로 Vite도 http://<robot-ip>:5173 에서 함께 시작됩니다.
+# ROS 노드만 실행하려면: ros2 launch motion_control_web motion_control_web.launch.py start_web:=false
 
 # 또는: 오프라인 개발용 스택 (rosbridge + 가짜 RobotState/MotorStatus 퍼블리셔)
 ros2 launch motion_control_web mock_dev.launch.py

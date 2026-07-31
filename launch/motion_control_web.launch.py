@@ -2,7 +2,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -21,9 +22,33 @@ DEFAULT_MOTOR_CONFIG_FILE = os.path.join(
     'motor_manager',
     'active_motor_manager.yaml',
 )
+DEFAULT_WEB_DIR = os.environ.get(
+    'MOTION_CONTROL_WEB_DIR',
+    os.path.expanduser('~/colcon_ws/src/ros2/motion_control_web/web'),
+)
 
 
 def generate_launch_description():
+    start_web_arg = DeclareLaunchArgument(
+        'start_web',
+        default_value='true',
+        description='Start the Vite development server with this launch file.',
+    )
+    web_dir_arg = DeclareLaunchArgument(
+        'web_dir',
+        default_value=DEFAULT_WEB_DIR,
+        description='Absolute path to the frontend npm project.',
+    )
+    web_host_arg = DeclareLaunchArgument(
+        'web_host',
+        default_value='0.0.0.0',
+        description='Interface on which the Vite server listens.',
+    )
+    web_port_arg = DeclareLaunchArgument(
+        'web_port',
+        default_value='5173',
+        description='Vite development-server listen port.',
+    )
     rosbridge_port_arg = DeclareLaunchArgument(
         'rosbridge_port',
         default_value='9090',
@@ -51,11 +76,25 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        start_web_arg,
+        web_dir_arg,
+        web_host_arg,
+        web_port_arg,
         rosbridge_port_arg,
         video_port_arg,
         gateway_params_file_arg,
         control_gateway_params_file_arg,
         motor_config_file_arg,
+        ExecuteProcess(
+            cmd=[
+                'npm', 'run', 'dev', '--',
+                '--host', LaunchConfiguration('web_host'),
+                '--port', LaunchConfiguration('web_port'),
+            ],
+            cwd=LaunchConfiguration('web_dir'),
+            condition=IfCondition(LaunchConfiguration('start_web')),
+            output='screen',
+        ),
         Node(
             package='rosbridge_server',
             executable='rosbridge_websocket',
