@@ -36,6 +36,33 @@ export interface ScheduleConfig {
   overheat: { limit_c: number; resume_c: number; recheck_sec: number }
 }
 
+export type StepKind =
+  | 'motion'
+  | 'rest'
+  | 'cooling'
+  | 'closed'
+  | 'disabled'
+  | 'error'
+  | 'open'
+  | 'close'
+
+/** One entry of the schedule timeline; times are robot-local ISO strings. */
+export interface TimelineStep {
+  kind: StepKind
+  label: string
+  detail: string
+  start?: string | null
+  end?: string
+}
+
+export interface MotionProgress {
+  name: string
+  /** 0..1 */
+  progress: number
+  elapsed_sec: number
+  duration_sec: number
+}
+
 /** JSON published on motion_control_web/schedule_status by schedule_node. */
 export interface ScheduleStatus {
   phase: string
@@ -51,6 +78,8 @@ export interface ScheduleStatus {
   motor_ids: number[]
   last_log: { timestamp: string; event: string; temperatures: number[] } | null
   last_error: string
+  motion?: MotionProgress | null
+  timeline?: { past: TimelineStep[]; current: TimelineStep | null; future: TimelineStep[] }
 }
 
 export const PHASE_LABELS: Record<string, string> = {

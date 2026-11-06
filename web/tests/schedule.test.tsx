@@ -17,8 +17,10 @@ vi.mock('roslib', () => ({
 const { default: App } = await import('../src/App')
 const { ControlPanel } = await import('../src/components/ControlPanel')
 const { SchedulePage } = await import('../src/components/schedule/SchedulePage')
+const { formatStepTime } = await import('../src/components/schedule/ScheduleTimeline')
 const { parseTemperatureCsv } = await import('../src/lib/scheduleServices')
 const { useConnectionStore } = await import('../src/store/connectionStore')
+type ScheduleStatus = import('../src/lib/scheduleServices').ScheduleStatus
 
 const CONFIG = {
   enabled: false,
@@ -34,7 +36,7 @@ const CONFIG = {
   overheat: { limit_c: 70, resume_c: 60, recheck_sec: 20 },
 }
 
-function status(enabled: boolean) {
+function status(enabled: boolean): ScheduleStatus {
   return {
     phase: enabled ? 'resting' : 'disabled',
     enabled,
@@ -49,6 +51,24 @@ function status(enabled: boolean) {
     motor_ids: [0, 1],
     last_log: null,
     last_error: '',
+    motion: enabled
+      ? { name: 'a.csv', progress: 0.42, elapsed_sec: 6.9, duration_sec: 16.5 }
+      : null,
+    timeline: {
+      past: [
+        { kind: 'rest', label: '10초', detail: '34℃ / 32℃', start: '2026-11-05T09:59:40-05:00', end: '2026-11-05T09:59:50-05:00' },
+      ],
+      current: enabled
+        ? { kind: 'motion', label: 'a.csv', detail: '', start: '2026-11-05T09:59:53-05:00' }
+        : { kind: 'disabled', label: '스케줄 꺼짐', detail: '', start: '2026-11-05T09:00:00-05:00' },
+      future: enabled
+        ? [
+            { kind: 'motion', label: 'b.csv', detail: '' },
+            { kind: 'rest', label: '10초', detail: '휴게 중 온도 기록' },
+            { kind: 'close', label: '영업 종료', detail: '', start: '2026-11-05T22:00:00-05:00' },
+          ]
+        : [],
+    },
   }
 }
 
@@ -70,6 +90,15 @@ describe('parseTemperatureCsv', () => {
 
   it('handles an empty file', () => {
     expect(parseTemperatureCsv('').time).toEqual([])
+  })
+})
+
+describe('schedule timeline', () => {
+  it('formats same-day times as clock time and other days with the date', () => {
+    const now = '2026-11-05T10:00:00-05:00'
+    expect(formatStepTime('2026-11-05T09:59:53-05:00', now)).toBe('09:59:53')
+    expect(formatStepTime('2026-11-06T10:00:00-05:00', now)).toBe('11-06 10:00')
+    expect(formatStepTime(null, now)).toBe('')
   })
 })
 
@@ -157,5 +186,24 @@ describe('schedule UI', () => {
 
     act(() => useConnectionStore.setState({ scheduleStatus: status(false) }))
     expect(screen.queryByTestId('schedule-lock')).not.toBeInTheDocument()
+  })
+
+  it('shows past, highlighted current step with motion progress, and upcoming steps', async () => {
+    useConnectionStore.setState({ scheduleStatus: status(true) })
+    render(<SchedulePage />)
+    await screen.findByTestId('schedule-save')
+
+    expect(screen.getAllByTestId('timeline-past')).toHaveLength(1)
+    const current = screen.getByTestId('timeline-current')
+    expect(current).toHaveTextContent('지금 · 모션')
+    expect(current).toHaveTextContent('a.csv')
+    expect(screen.getByTestId('schedule-motion-progress')).toHaveTextContent('6.9초 / 16.5초')
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42')
+    const future = screen.getAllByTestId('timeline-future')
+    expect(future.map((li) => li.textContent)).toEqual([
+      expect.stringContaining('b.csv'),
+      expect.stringContaining('10초'),
+      expect.stringContaining('22:00:00'),
+    ])
   })
 })

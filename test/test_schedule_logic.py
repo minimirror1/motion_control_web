@@ -106,3 +106,22 @@ def test_stop_threshold_lands_before_wrap():
     # Short motions are capped at 1 % early.
     assert logic.stop_progress_threshold(5.0) == pytest.approx(0.99)
     assert logic.stop_progress_threshold(0.0) == 0.995
+
+
+def test_closing_time_only_while_open():
+    config = _config()
+    assert logic.closing_time(config, MON_0959) is None
+    assert logic.closing_time(config, MON_1000) == datetime(2026, 11, 2, 22, 0)
+    assert logic.closing_time(config, MON_2200) is None
+
+
+def test_next_open_skips_closed_days():
+    config = _config(week={'tue': {'enabled': False}})
+    assert logic.next_open(config, MON_0959) == MON_1000
+    # Monday after closing: Tuesday is a holiday, so Wednesday 10:00.
+    assert logic.next_open(config, MON_2200) == datetime(2026, 11, 4, 10, 0)
+
+
+def test_next_open_none_when_every_day_closed():
+    config = _config(week={d: {'enabled': False} for d in logic.DAYS})
+    assert logic.next_open(config, MON_1000) is None

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConnectionStore } from '../../store/connectionStore'
 import { listMotionFiles } from '../../lib/teachServices'
+import { ScheduleTimeline } from './ScheduleTimeline'
 import {
   DAYS,
   DAY_LABELS,
@@ -26,6 +27,7 @@ function StatusCard({
 }) {
   const status = useConnectionStore((state) => state.scheduleStatus)
   const enabled = status?.enabled ?? savedEnabled
+  const timeline = status?.timeline
 
   return (
     <section className={CARD} data-testid="schedule-status">
@@ -49,40 +51,64 @@ function StatusCard({
         </button>
       </div>
       {status && (
-        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400 sm:grid-cols-3">
-          <div>
-            현재 시각: <span className="text-slate-200">{status.now.slice(0, 19).replace('T', ' ')}</span>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="rounded-md border border-slate-800 bg-slate-950/50 p-3">
+            {timeline ? (
+              <ScheduleTimeline
+                past={timeline.past}
+                current={timeline.current}
+                future={timeline.future}
+                nowIso={status.now}
+                motion={status.motion ?? null}
+                restRemainingSec={status.rest_remaining_sec}
+              />
+            ) : (
+              <p className="text-xs text-slate-500">타임라인 정보를 받는 중입니다.</p>
+            )}
           </div>
-          <div>
-            시간대: <span className="text-slate-200">{status.timezone}</span>
-          </div>
-          <div>
-            영업시간: <span className="text-slate-200">{status.open_now ? '영업 중' : '영업 외'}</span>
-          </div>
-          <div>
-            현재 모션: <span className="text-slate-200">{status.active_motion ?? '-'}</span>
-          </div>
-          <div>
-            휴게까지 남은 모션: <span className="text-slate-200">{status.motions_left}</span>
-          </div>
-          <div>
-            휴게 남은 시간:{' '}
-            <span className="text-slate-200">
-              {status.rest_remaining_sec === null ? '-' : `${Math.ceil(status.rest_remaining_sec)}초`}
-            </span>
-          </div>
-          <div className="col-span-2 sm:col-span-3">
-            모터 온도 (토크 OFF 때만 측정, 마지막 값):{' '}
-            <span className="text-slate-200">
-              {status.temperatures.length
-                ? status.motor_ids.map((id, i) => `#${id} ${status.temperatures[i]}℃`).join(' · ')
-                : '-'}
-            </span>
-          </div>
-          {status.last_error && (
-            <div className="col-span-2 text-red-400 sm:col-span-3">최근 오류: {status.last_error}</div>
-          )}
-        </dl>
+          <dl className="space-y-2 text-xs text-slate-400">
+            <div className="flex justify-between gap-3">
+              <dt>현재 시각</dt>
+              <dd className="font-mono text-slate-200">{status.now.slice(0, 19).replace('T', ' ')}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>시간대</dt>
+              <dd className="text-slate-200">{status.timezone}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>영업시간</dt>
+              <dd className={status.open_now ? 'text-emerald-300' : 'text-slate-200'}>
+                {status.open_now ? '영업 중' : '영업 외'}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>휴게까지 남은 모션</dt>
+              <dd className="text-slate-200">{status.enabled ? status.motions_left : '-'}</dd>
+            </div>
+            <div>
+              <dt>모터 온도 (토크 OFF 때만 측정, 마지막 값)</dt>
+              <dd className="mt-1 flex flex-wrap gap-1.5">
+                {status.temperatures.length
+                  ? status.motor_ids.map((id, i) => (
+                      <span
+                        key={id}
+                        className={`rounded px-1.5 py-0.5 font-mono ${
+                          status.overheated ? 'bg-amber-900/60 text-amber-200' : 'bg-slate-800 text-slate-200'
+                        }`}
+                      >
+                        #{id} {status.temperatures[i]}℃
+                      </span>
+                    ))
+                  : '-'}
+              </dd>
+            </div>
+            {status.last_error && (
+              <div className="rounded border border-red-900 bg-red-950/40 p-2 text-red-300">
+                최근 오류: {status.last_error}
+              </div>
+            )}
+          </dl>
+        </div>
       )}
     </section>
   )

@@ -17,7 +17,7 @@ from __future__ import annotations
 import copy
 import random
 import re
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import Any, Iterable
 
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
@@ -134,6 +134,27 @@ def is_open(config: dict[str, Any], now: datetime) -> bool:
     opens = _parse_hhmm(day['open'], 'open')
     closes = _parse_hhmm(day['close'], 'close')
     return opens <= now.time() < closes
+
+
+def closing_time(config: dict[str, Any], now: datetime) -> datetime | None:
+    """Today's closing time if now is inside the opening window, else None."""
+    if not is_open(config, now):
+        return None
+    closes = _parse_hhmm(config['week'][DAYS[now.weekday()]]['close'], 'close')
+    return datetime.combine(now.date(), closes, now.tzinfo)
+
+
+def next_open(config: dict[str, Any], now: datetime) -> datetime | None:
+    """Start of the next opening window after now (within a week), or None."""
+    for offset in range(8):
+        day = now.date() + timedelta(days=offset)
+        entry = config['week'][DAYS[day.weekday()]]
+        if not entry['enabled']:
+            continue
+        start = datetime.combine(day, _parse_hhmm(entry['open'], 'open'), now.tzinfo)
+        if start > now:
+            return start
+    return None
 
 
 def pick_motion_count(config: dict[str, Any], rng: random.Random) -> int:

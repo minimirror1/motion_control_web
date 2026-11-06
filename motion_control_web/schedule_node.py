@@ -22,6 +22,7 @@ import json
 import os
 import random
 import time
+from collections import deque
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -65,6 +66,7 @@ RETRY_SEC = 2.0
 ERROR_BACKOFF_SEC = 30.0
 TORQUE_TIMEOUT_SEC = 10.0
 STOP_TIMEOUT_SEC = 10.0
+HISTORY_SIZE = 6
 SERVICE_TIMEOUT_SEC = 15.0
 
 FILES_DIR = os.environ.get(
@@ -171,6 +173,11 @@ class ScheduleNode(Node):
         self.last_error = ''
         self.last_log: dict[str, Any] | None = None
         self.last_purge_day = None
+        # Timeline for the web UI: finished steps, the step in progress.
+        self.history: deque[dict[str, Any]] = deque(maxlen=HISTORY_SIZE)
+        self.current_step: dict[str, Any] | None = None
+        self.play_started_at = 0.0
+        self.play_duration = 0.0
 
         self._publish_active()
         self.create_timer(0.1, self._tick)
@@ -322,6 +329,14 @@ class ScheduleNode(Node):
     def _elapsed(self) -> float:
         return time.monotonic() - self.phase_at
 
+    def _set_step(self, kind: str, label: str, detail: str = '') -> None:
+        """Start a new timeline step; the previous one moves to history."""
+        now = _now_iso()
+        if self.current_step is not None:
+            self.current_step.setdefault('end', now)
+            self.history.append(self.current_step)
+        self.current_step = {'kind': kind, 'label': label, 'detail': detail, 'start': now}
+
     def _since_sent(self) -> float:
         return time.monotonic() - self.last_sent_at
 
@@ -330,6 +345,7 @@ class ScheduleNode(Node):
         self.get_logger().error(f'schedule error: {reason}')
         self.pending_call = None
         self._begin_enforce_off()
+        self._set_step('error', reason)
         self._enter(Phase.ERROR)
 
     def _begin_enforce_off(self) -> None:
@@ -360,6 +376,7 @@ class ScheduleNode(Node):
         if not self.config['enabled']:
             if self.phase != Phase.DISABLED:
                 self._shutdown_cycle()
+                self._set_step('disabled', '스케줄 꺼짐')
                 self._enter(Phase.DISABLED)
             self._enforce_off()
             return
@@ -405,7 +422,7 @@ class ScheduleNode(Node):
             self._start_cycle()
             return
         if self.phase != Phase.CLOSED:
-            self._enter(Phase.CLOSED)
+            self._enter_closed()
         # Keep torque OFF while closed.
         if not self._torque_all(False) and self._since_sent() > RETRY_SEC:
             self._request_torque(False)
@@ -432,6 +449,7 @@ class ScheduleNode(Node):
         if self.active_motion is None:
             self.active_motion = self._read_active_motion()
         target = playlist[self.playlist_index % len(playlist)] if playlist else None
+        self._set_step('motion', target or self.active_motion or '활성 모션')
         self._enter(Phase.SELECTING)
         if target is None or target == self.active_motion:
             self._begin_reload(target or self.active_motion)
@@ -476,6 +494,8 @@ class ScheduleNode(Node):
         duration = self._read_move_duration()
         self.stop_threshold = logic.stop_progress_threshold(duration)
         self.play_timeout = (duration if duration > 0 else 600.0) * 1.5 + 30.0
+        self.play_started_at = time.monotonic()
+        self.play_duration = duration
         self.seen_moving = False
         self.last_progress = 0.0
         self._send(COMMAND_PLAY_MOTION)
@@ -494,6 +514,8 @@ class ScheduleNode(Node):
                 self._send(COMMAND_PLAY_MOTION)
 
     def _finish_motion(self) -> None:
+        if self.current_step is not None:
+            self.current_step['end'] = _now_iso()
         self._send(COMMAND_STOP_MOTION)
         self.motions_left -= 1
         self.playlist_index += 1
@@ -522,7 +544,7 @@ class ScheduleNode(Node):
             if self.after_disable == Phase.RESTING:
                 self._begin_rest(now)
             else:
-                self._enter(Phase.CLOSED)
+                self._enter_closed()
         elif self._elapsed() > TORQUE_TIMEOUT_SEC:
             self._fail('torque OFF timed out')
         elif self._since_sent() > RETRY_SEC:
@@ -536,25 +558,35 @@ class ScheduleNode(Node):
         self.get_logger().info(
             f'rest {rest_sec:g}s, temperatures={temperatures}'
             + (' (overheat: rest extended)' if self.overheated else ''))
+        self._set_step('rest', f'{rest_sec:g}초', _temps_text(temperatures))
         self._enter(Phase.RESTING)
+
+    def _enter_closed(self) -> None:
+        self._set_step('closed', '영업시간 외')
+        self._enter(Phase.CLOSED)
 
     def _tick_resting(self, now: datetime) -> None:
         if not logic.is_open(self.config, now):
-            self._enter(Phase.CLOSED)
+            self._enter_closed()
         elif time.monotonic() >= self.rest_until:
             if self.overheated:
                 self.next_check_at = time.monotonic() + self.config['overheat']['recheck_sec']
+                resume_c = self.config['overheat']['resume_c']
+                self._set_step('cooling', f'{resume_c:g}℃ 미만이 될 때까지 연장',
+                               _temps_text(self.temperatures))
                 self._enter(Phase.COOLING)
             else:
                 self._start_cycle()
 
     def _tick_cooling(self, now: datetime) -> None:
         if not logic.is_open(self.config, now):
-            self._enter(Phase.CLOSED)
+            self._enter_closed()
             return
         if time.monotonic() < self.next_check_at:
             return
         temperatures = self._log_temperatures(now, 'overheat_recheck')
+        if self.current_step is not None:
+            self.current_step['detail'] = _temps_text(temperatures)
         if logic.is_cooled(self.config, temperatures):
             self.overheated = False
             self._start_cycle()
@@ -614,8 +646,79 @@ class ScheduleNode(Node):
             'motor_ids': self.motor_ids,
             'last_log': self.last_log,
             'last_error': self.last_error,
+            'motion': self._motion_progress(),
+            'timeline': {
+                'past': list(self.history),
+                'current': self.current_step,
+                'future': self._future_steps(now),
+            },
         }
         self.status_publisher.publish(String(data=json.dumps(status)))
+
+
+    def _motion_progress(self) -> dict[str, Any] | None:
+        if self.phase not in (Phase.PLAYING, Phase.STOPPING) or self.current_step is None:
+            return None
+        finished = self.phase == Phase.STOPPING
+        elapsed = time.monotonic() - self.play_started_at
+        if self.play_duration > 0:
+            elapsed = min(elapsed, self.play_duration)
+        return {
+            'name': self.current_step['label'],
+            'progress': 1.0 if finished else max(0.0, min(1.0, self.robot_progress)),
+            'elapsed_sec': self.play_duration if finished else elapsed,
+            'duration_sec': self.play_duration,
+        }
+
+    def _future_steps(self, now: datetime) -> list[dict[str, Any]]:
+        """What comes next, as far as it is known (motion counts are random)."""
+        if not self.config['enabled']:
+            return []
+        closes = logic.closing_time(self.config, now)
+        if closes is None:
+            opens = logic.next_open(self.config, now)
+            return [{
+                'kind': 'open', 'label': '스케줄 자동 시작',
+                'detail': '', 'start': opens.astimezone().isoformat(timespec='seconds') if opens else None,
+            }] if opens else []
+
+        playlist = self.config['playlist']
+
+        def name(offset: int) -> str:
+            if playlist:
+                return playlist[(self.playlist_index + offset) % len(playlist)]
+            return self.active_motion or '활성 모션'
+
+        counts = self.config['motions_per_rest']
+        count_text = (f'{counts["min"]}개' if counts['min'] == counts['max']
+                      else f'{counts["min"]}~{counts["max"]}개 무작위')
+        rest = self.config['rest_sec']
+        rest_text = (f'{rest["min"]:g}초' if rest['min'] == rest['max']
+                     else f'{rest["min"]:g}~{rest["max"]:g}초 무작위')
+
+        steps: list[dict[str, Any]] = []
+        if self.phase in (Phase.SELECTING, Phase.PLAYING):
+            first, remaining = 1, self.motions_left - 1
+        elif self.phase in (Phase.ENABLING, Phase.STOPPING, Phase.DISABLING):
+            first, remaining = 0, self.motions_left
+        else:  # resting, cooling, waiting, error: a new cycle comes next
+            steps.append({'kind': 'motion', 'label': name(0),
+                          'detail': f'다음 사이클 {count_text}'})
+            first, remaining = 1, 0
+        for i in range(max(0, remaining)):
+            steps.append({'kind': 'motion', 'label': name(first + i), 'detail': ''})
+        steps.append({'kind': 'rest', 'label': rest_text, 'detail': '휴게 중 온도 기록'})
+        steps.append({'kind': 'close', 'label': '재생 중 모션을 마친 뒤 토크 OFF', 'detail': '',
+                      'start': closes.astimezone().isoformat(timespec='seconds')})
+        return steps
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec='seconds')
+
+
+def _temps_text(temperatures: list[float]) -> str:
+    return ' / '.join(f'{t:g}℃' for t in temperatures)
 
 
 def _tz_name() -> str:
