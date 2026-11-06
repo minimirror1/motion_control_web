@@ -24,6 +24,45 @@ const AXIS_STYLE = {
   ticks: { stroke: '#1e293b', width: 1 },
 }
 
+/** Label shown at the mouse cursor, e.g. "12.34 s". */
+export function formatCursorTime(seconds: number): string {
+  return `${seconds.toFixed(2)} s`
+}
+
+/**
+ * Draws the time-axis value at the mouse cursor as a small tag on top of
+ * uPlot's cursor line. Updated imperatively so mouse moves don't re-render React.
+ */
+function cursorTimePlugin(): uPlot.Plugin {
+  let tag: HTMLDivElement | null = null
+  return {
+    hooks: {
+      init: (u) => {
+        tag = document.createElement('div')
+        tag.dataset.testid = 'chart-cursor-time'
+        tag.className =
+          'pointer-events-none absolute top-1 z-10 hidden whitespace-nowrap rounded ' +
+          'bg-slate-800/90 px-1.5 py-0.5 font-mono text-xs text-slate-100'
+        u.over.appendChild(tag)
+      },
+      setCursor: (u) => {
+        if (!tag) return
+        const left = u.cursor.left ?? -1
+        if (left < 0) {
+          tag.classList.add('hidden')
+          return
+        }
+        tag.textContent = formatCursorTime(u.posToVal(left, 'x'))
+        tag.classList.remove('hidden')
+        // Center on the cursor line, but keep the tag inside the plot area.
+        const half = tag.offsetWidth / 2
+        const x = Math.min(Math.max(left, half), u.over.clientWidth - half)
+        tag.style.left = `${x - half}px`
+      },
+    },
+  }
+}
+
 interface Props {
   data: WaveformData
   labels: string[]
@@ -80,6 +119,7 @@ export function TrajectoryChart({
           })),
         ],
         plugins: [
+          cursorTimePlugin(),
           {
             hooks: {
               draw: [

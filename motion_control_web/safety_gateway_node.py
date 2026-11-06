@@ -5,6 +5,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 
 from motion_control_msgs.msg import MotorStatus
+from std_msgs.msg import Bool
 
 # Matches the QoS motion_control_robot's robot_manager_node uses for
 # motion_control/motor_command, so this node's publisher is actually
@@ -53,6 +54,7 @@ class SafetyGatewayNode(Node):
             )
 
         self._last_accepted_time = 0.0
+        self.schedule_active = False
 
         self.command_publisher = self.create_publisher(
             MotorStatus,
@@ -65,13 +67,30 @@ class SafetyGatewayNode(Node):
             self._on_command_request,
             10,
         )
+        self.schedule_active_subscriber = self.create_subscription(
+            Bool,
+            'motion_control_web/schedule_active',
+            self._on_schedule_active,
+            QoSProfile(
+                depth=1,
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
 
         self.get_logger().info(
             f'safety_gateway_node up: {self.input_topic} -> {self.output_topic} '
             f'(rate limit {self.min_command_interval_sec}s, bounds_enabled={self.bounds_enabled})'
         )
 
+    def _on_schedule_active(self, msg: Bool) -> None:
+        self.schedule_active = bool(msg.data)
+
     def _on_command_request(self, msg: MotorStatus) -> None:
+        if self.schedule_active:
+            self.get_logger().warn('rejected command: schedule is ON')
+            return
+
         now = time.monotonic()
         if now - self._last_accepted_time < self.min_command_interval_sec:
             self.get_logger().debug('rejected command: rate limit')

@@ -7,6 +7,7 @@ import {
   type GetMotorConfigResponse,
   type MotorConfigEntry,
 } from '../lib/motorConfig'
+import type { ScheduleStatus } from '../lib/scheduleServices'
 
 export interface RobotState {
   selected_robot_index: number
@@ -79,6 +80,7 @@ interface ConnectionStore {
   motorCommand: MotorCommand | null
   motorConfig: MotorConfigEntry[] | null
   recordingStatus: RecordingStatus | null
+  scheduleStatus: ScheduleStatus | null
   controlCommandTopic: Topic<UInt8Message> | null
   connect: () => void
   sendControlCommand: (command: ControlCommand) => boolean
@@ -98,6 +100,7 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
   motorCommand: null,
   motorConfig: null,
   recordingStatus: null,
+  scheduleStatus: null,
   controlCommandTopic: null,
   connect: () => {
     if (get().ros) {
@@ -107,9 +110,21 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
     const ros = createRosConnection(
       () => set({ connected: true }),
       () =>
-        set({ connected: false, motorStatus: null, motorCommand: null, recordingStatus: null }),
+        set({
+          connected: false,
+          motorStatus: null,
+          motorCommand: null,
+          recordingStatus: null,
+          scheduleStatus: null,
+        }),
       () =>
-        set({ connected: false, motorStatus: null, motorCommand: null, recordingStatus: null }),
+        set({
+          connected: false,
+          motorStatus: null,
+          motorCommand: null,
+          recordingStatus: null,
+          scheduleStatus: null,
+        }),
     )
 
     // motion_control/robot_state (motion_control_robot/robot_manager_node.py) is
@@ -173,6 +188,20 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       messageType: 'motion_control_msgs/RecordingStatus',
     })
     recordingStatusTopic.subscribe((message) => set({ recordingStatus: message }))
+
+    // JSON status from schedule_node (motion_control_web/schedule_node.py), 1 Hz.
+    const scheduleStatusTopic = new Topic<{ data: string }>({
+      ros,
+      name: 'motion_control_web/schedule_status',
+      messageType: 'std_msgs/String',
+    })
+    scheduleStatusTopic.subscribe((message) => {
+      try {
+        set({ scheduleStatus: JSON.parse(message.data) as ScheduleStatus })
+      } catch {
+        set({ scheduleStatus: null })
+      }
+    })
 
     const controlCommandTopic = new Topic<UInt8Message>({
       ros,

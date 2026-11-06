@@ -2,18 +2,25 @@ import { useState } from 'react'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { DashboardPage } from './components/DashboardPage'
 import { MotorSettingsPage } from './components/motorSettings/MotorSettingsPage'
+import { SchedulePage } from './components/schedule/SchedulePage'
+import { TemperaturePage } from './components/schedule/TemperaturePage'
 import { TeachPage } from './components/teach/TeachPage'
+import { useConnectionStore } from './store/connectionStore'
 
-type Tab = 'dashboard' | 'teach' | 'motor-settings'
+type Tab = 'dashboard' | 'schedule' | 'temperature' | 'teach' | 'motor-settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'dashboard', label: '대시보드' },
+  { id: 'schedule', label: '스케줄' },
+  { id: 'temperature', label: '온도 기록' },
   { id: 'teach', label: '모션 티칭' },
   { id: 'motor-settings', label: '모터 설정' },
 ]
 
 const PAGES: Record<Tab, () => JSX.Element> = {
   dashboard: DashboardPage,
+  schedule: SchedulePage,
+  temperature: TemperaturePage,
   teach: TeachPage,
   'motor-settings': MotorSettingsPage,
 }
@@ -21,6 +28,10 @@ const PAGES: Record<Tab, () => JSX.Element> = {
 function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const Page = PAGES[tab]
+  // Teach and motor settings drive the motors directly; the schedule owns them
+  // while it is ON.
+  const scheduleActive = useConnectionStore((state) => state.scheduleStatus?.enabled ?? false)
+  const locked = scheduleActive && (tab === 'teach' || tab === 'motor-settings')
 
   return (
     <div className="min-h-screen bg-slate-950 p-4">
@@ -55,7 +66,24 @@ function App() {
           </h1>
         </header>
         <div className="mt-4">
-          <Page />
+          {locked ? (
+            <div
+              data-testid="schedule-lock"
+              className="rounded-lg border border-amber-700 bg-amber-950/40 p-4 text-sm text-amber-200"
+            >
+              스케줄이 켜져 있어 이 화면을 사용할 수 없습니다. 스케줄 탭에서 스케줄을 끈 뒤
+              사용하세요.
+              <button
+                type="button"
+                onClick={() => setTab('schedule')}
+                className="ml-3 rounded-md bg-amber-700 px-3 py-1 text-white hover:bg-amber-600"
+              >
+                스케줄 탭으로
+              </button>
+            </div>
+          ) : (
+            <Page />
+          )}
         </div>
       </main>
     </div>
