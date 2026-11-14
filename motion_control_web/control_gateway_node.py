@@ -3,8 +3,9 @@ import time
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import Joy
-from std_msgs.msg import UInt8
+from std_msgs.msg import Bool, UInt8
 
 
 COMMAND_ENABLE_MOTORS = 1
@@ -52,6 +53,14 @@ class ControlGatewayNode(Node):
             'motion_control_web/control_command',
         )
         self.declare_parameter('output_topic', 'joy')
+        self.declare_parameter(
+            'schedule_input_topic',
+            'motion_control_web/schedule_control_command',
+        )
+        self.declare_parameter(
+            'schedule_active_topic',
+            'motion_control_web/schedule_active',
+        )
         self.declare_parameter('min_command_interval_sec', 0.25)
         self.declare_parameter('button_hold_sec', 0.1)
 
@@ -71,6 +80,25 @@ class ControlGatewayNode(Node):
             self._on_command,
             10,
         )
+        # While schedule_node runs the schedule, only its own topic may drive
+        # the robot; web-origin commands are dropped.
+        self.schedule_active = False
+        self.schedule_command_subscription = self.create_subscription(
+            UInt8,
+            self.get_parameter('schedule_input_topic').value,
+            self._on_schedule_command,
+            10,
+        )
+        self.schedule_active_subscription = self.create_subscription(
+            Bool,
+            self.get_parameter('schedule_active_topic').value,
+            self._on_schedule_active,
+            QoSProfile(
+                depth=1,
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
         self.release_timer = self.create_timer(
             min(max(self.button_hold_sec / 4.0, 0.01), 0.05),
             self._release_button_if_due,
@@ -86,8 +114,21 @@ class ControlGatewayNode(Node):
             f'4=home, 5=disable motors, 6=move to start)'
         )
 
+    def _on_schedule_active(self, msg: Bool) -> None:
+        self.schedule_active = bool(msg.data)
+
     def _on_command(self, msg: UInt8) -> None:
-        command = int(msg.data)
+        if self.schedule_active:
+            self.get_logger().warn(
+                f'rejected control command while schedule is ON: {int(msg.data)}'
+            )
+            return
+        self._handle_command(int(msg.data))
+
+    def _on_schedule_command(self, msg: UInt8) -> None:
+        self._handle_command(int(msg.data))
+
+    def _handle_command(self, command: int) -> None:
         button = COMMAND_BUTTONS.get(command)
         if button is None:
             self.get_logger().warn(f'rejected unknown control command: {command}')

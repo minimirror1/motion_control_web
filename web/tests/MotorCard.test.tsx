@@ -34,7 +34,7 @@ describe('MotorCard', () => {
     const card = screen.getByTestId('motor-card-0')
     expect(card.className).toContain('bg-emerald-950')
     expect(card.className).toContain('ring-red-500')
-    expect(screen.getByTestId('motor-card-0-fault')).toHaveTextContent('폴트 5')
+    expect(screen.getByTestId('motor-card-0-fault')).toHaveTextContent('폴트: 입력 전압 오류, 과열')
   })
 
   it('positions the gauge needle within the configured limits', () => {

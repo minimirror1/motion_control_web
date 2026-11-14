@@ -90,3 +90,29 @@ def test_non_safety_command_is_rate_limited_but_stop_and_disable_are_not():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_web_commands_blocked_while_schedule_active_but_schedule_commands_pass():
+    from std_msgs.msg import Bool
+
+    rclpy.init()
+    node = ControlGatewayNode()
+    try:
+        node.min_command_interval_sec = 0.0
+        messages = _capture_messages(node)
+
+        node._on_schedule_active(Bool(data=True))
+        node._on_command(_make_command(COMMAND_PLAY_MOTION))
+        node._on_command(_make_command(COMMAND_STOP_MOTION))
+        assert messages == []
+
+        node._on_schedule_command(_make_command(COMMAND_PLAY_MOTION))
+        assert messages[0].buttons[JOY_BUTTON_CIRCLE] == 1
+        node._publish_release()
+
+        node._on_schedule_active(Bool(data=False))
+        node._on_command(_make_command(COMMAND_STOP_MOTION))
+        assert messages[-1].buttons[JOY_BUTTON_SQUARE] == 1
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

@@ -63,6 +63,9 @@ export function ControlPanel() {
     (state) => state.sendControlCommand,
   )
   const motorStatus = useConnectionStore((state) => state.motorStatus)
+  const scheduleActive = useConnectionStore(
+    (state) => state.scheduleStatus?.enabled ?? false,
+  )
   const [lastCommand, setLastCommand] = useState<string | null>(null)
 
   const send = (command: ControlCommand, label: string) => {
@@ -87,7 +90,7 @@ export function ControlPanel() {
           <button
             key={command}
             type="button"
-            disabled={!connected}
+            disabled={!connected || scheduleActive}
             onClick={() => send(command, label)}
             className={`rounded-md px-3 py-3 text-sm font-semibold text-white transition ${className} disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400`}
           >
@@ -99,9 +102,11 @@ export function ControlPanel() {
         data-testid="control-feedback"
         className="mt-3 min-h-5 text-xs text-slate-400"
       >
-        {connected
-          ? lastCommand ?? '명령을 선택하세요.'
-          : 'ROS 연결 후 제어할 수 있습니다.'}
+        {!connected
+          ? 'ROS 연결 후 제어할 수 있습니다.'
+          : scheduleActive
+            ? '스케줄 동작 중에는 수동 제어가 잠깁니다. 스케줄 탭에서 끄세요.'
+            : lastCommand ?? '명령을 선택하세요.'}
       </p>
     </section>
   )

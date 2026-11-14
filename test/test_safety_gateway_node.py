@@ -48,3 +48,25 @@ def test_rate_limited_command_is_dropped():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_command_dropped_while_schedule_active():
+    from std_msgs.msg import Bool
+
+    rclpy.init()
+    node = SafetyGatewayNode()
+    try:
+        node.min_command_interval_sec = 0.0
+        received = []
+        node.command_publisher.publish = lambda msg: received.append(msg)
+
+        node._on_schedule_active(Bool(data=True))
+        node._on_command_request(_make_status([0.0]))
+        assert received == []
+
+        node._on_schedule_active(Bool(data=False))
+        node._on_command_request(_make_status([0.0]))
+        assert len(received) == 1
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

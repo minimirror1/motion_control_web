@@ -142,4 +142,10 @@ def generate_launch_description():
                 'config_file': LaunchConfiguration('motor_config_file'),
             }],
         ),
+        Node(
+            package='motion_control_web',
+            executable='schedule_node',
+            name='schedule_node',
+            output='screen',
+        ),
     ])
