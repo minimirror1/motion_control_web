@@ -151,7 +151,11 @@ class ScheduleNode(Node):
         self.robot_state_at = -1e9
         self.motor_ids: list[int] = []
         self.statuswords: list[int] = []
+        self.errorcodes: list[int] = []
         self.temperatures: list[float] = []
+        # Motors left out after a failed torque ON: id -> {reason, since}.
+        # Cleared when the user switches the schedule OFF and ON again.
+        self.excluded: dict[int, dict[str, str]] = {}
         self.motor_status_at = -1e9
 
         # Cycle bookkeeping.
@@ -238,6 +242,10 @@ class ScheduleNode(Node):
             response.success = False
             response.message = str(e)
             return response
+        if config['enabled'] and not self.config['enabled'] and self.excluded:
+            self.get_logger().info(
+                f'schedule switched ON: rechecking excluded motors {sorted(self.excluded)}')
+            self.excluded.clear()
         self.config = config
         self._publish_active()
         response.success = True
@@ -287,6 +295,7 @@ class ScheduleNode(Node):
     def _on_motor_status(self, msg: MotorStatus) -> None:
         self.motor_ids = [int(i) for i in msg.controller_index]
         self.statuswords = [int(s) for s in msg.statusword]
+        self.errorcodes = [int(e) for e in msg.errorcode]
         self.temperatures = [float(t) for t in msg.temperature]
         self.motor_status_at = time.monotonic()
 
@@ -299,10 +308,13 @@ class ScheduleNode(Node):
         )
 
     def _torque_all(self, on: bool) -> bool:
+        """ON: every motor still in use has torque. OFF: no motor has torque."""
         if not self.statuswords:
             return False
         if on:
-            return all(s != 0 for s in self.statuswords)
+            enabled, disabled = logic.split_torque_result(
+                self.motor_ids, self.statuswords, self.excluded)
+            return bool(enabled) and not disabled
         return all(s == 0 for s in self.statuswords)
 
     # --------------------------------------------------------------- commands
@@ -316,7 +328,8 @@ class ScheduleNode(Node):
             return
         data = [REQUEST_KEEP] * (max(self.motor_ids) + 1)
         for i in self.motor_ids:
-            data[i] = REQUEST_ENABLE if on else REQUEST_DISABLE
+            # Excluded motors stay OFF so motor_manager stops retrying them.
+            data[i] = REQUEST_ENABLE if on and i not in self.excluded else REQUEST_DISABLE
         self.request_publisher.publish(Int8MultiArray(data=data))
         self.last_sent_at = time.monotonic()
 
@@ -437,9 +450,36 @@ class ScheduleNode(Node):
         if self._torque_all(True):
             self._next_motion(now)
         elif self._elapsed() > TORQUE_TIMEOUT_SEC:
-            self._fail('torque ON timed out')
+            enabled, failed = logic.split_torque_result(
+                self.motor_ids, self.statuswords, self.excluded)
+            if not enabled:
+                self._fail(f'torque ON timed out (모터 {self._ids_text(failed)})')
+                return
+            self._exclude(failed)
+            self._request_torque(True)  # turns the excluded motors OFF again
+            self._next_motion(now)
         elif self._since_sent() > RETRY_SEC:
             self._request_torque(True)
+
+    def _exclude(self, motor_ids: list[int]) -> None:
+        """Leave motors that won't take torque out; run with the rest."""
+        since = datetime.now().isoformat(timespec='seconds')
+        errors = dict(zip(self.motor_ids, self.errorcodes))
+        reasons = []
+        for motor_id in motor_ids:
+            reason = logic.describe_hardware_error(errors.get(motor_id, 0)) or '토크 ON 응답 없음'
+            self.excluded[motor_id] = {'reason': reason, 'since': since}
+            reasons.append(f'모터 {motor_id}: {reason}')
+        ids = self._ids_text(motor_ids)
+        self.last_error = f'{since} 모터 {ids} 토크 ON 실패 → 제외하고 나머지 모터로 진행'
+        self.get_logger().warning(
+            f'torque ON failed for motor(s) {ids} ({"; ".join(reasons)}); '
+            'excluded until the schedule is switched OFF and ON')
+        self._set_step('error', f'모터 {ids} 제외', '; '.join(reasons))
+
+    @staticmethod
+    def _ids_text(motor_ids: list[int]) -> str:
+        return ', '.join(str(i) for i in motor_ids)
 
     def _next_motion(self, now: datetime) -> None:
         if not logic.is_open(self.config, now):
@@ -644,6 +684,10 @@ class ScheduleNode(Node):
             'overheated': self.overheated,
             'temperatures': self.temperatures,
             'motor_ids': self.motor_ids,
+            'errorcodes': self.errorcodes,
+            'excluded_motors': [
+                {'id': motor_id, **info} for motor_id, info in sorted(self.excluded.items())
+            ],
             'last_log': self.last_log,
             'last_error': self.last_error,
             'motion': self._motion_progress(),

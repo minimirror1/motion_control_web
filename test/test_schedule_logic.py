@@ -125,3 +125,16 @@ def test_next_open_skips_closed_days():
 def test_next_open_none_when_every_day_closed():
     config = _config(week={d: {'enabled': False} for d in logic.DAYS})
     assert logic.next_open(config, MON_1000) is None
+
+
+def test_describe_hardware_error():
+    assert logic.describe_hardware_error(0) == ''
+    assert logic.describe_hardware_error(0x20) == '과부하'
+    assert logic.describe_hardware_error(0x24) == '과열, 과부하'
+    assert logic.describe_hardware_error(0x02) == '오류 코드 2'
+
+
+def test_split_torque_result_skips_excluded():
+    on, off = logic.split_torque_result([0, 1, 2, 3], [0, 1, 1, 0], excluded=[3])
+    assert on == [1, 2]
+    assert off == [0]

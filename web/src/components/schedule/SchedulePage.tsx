@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConnectionStore } from '../../store/connectionStore'
 import { listMotionFiles } from '../../lib/teachServices'
-import { ScheduleTimeline } from './ScheduleTimeline'
+import { describeHardwareError } from '../../lib/hardwareError'
+import { ScheduleTimeline, formatStepTime } from './ScheduleTimeline'
 import {
   DAYS,
   DAY_LABELS,
@@ -28,6 +29,7 @@ function StatusCard({
   const status = useConnectionStore((state) => state.scheduleStatus)
   const enabled = status?.enabled ?? savedEnabled
   const timeline = status?.timeline
+  const excluded = status?.excluded_motors ?? []
 
   return (
     <section className={CARD} data-testid="schedule-status">
@@ -85,20 +87,53 @@ function StatusCard({
               <dt>휴게까지 남은 모션</dt>
               <dd className="text-slate-200">{status.enabled ? status.motions_left : '-'}</dd>
             </div>
+            {excluded.length > 0 && (
+              <div
+                className="rounded border border-red-800 bg-red-950/50 p-2 text-red-200"
+                data-testid="schedule-excluded-motors"
+              >
+                <p className="font-semibold">제외된 모터 (나머지 모터로만 동작 중)</p>
+                <ul className="mt-1 space-y-0.5">
+                  {excluded.map((m) => (
+                    <li key={m.id}>
+                      <span className="font-mono font-semibold">#{m.id}</span> {m.reason}
+                      <span className="ml-1 text-red-300/70">
+                        · {formatStepTime(m.since, status.now)}부터
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-[11px] text-red-300/80">
+                  스케줄을 껐다 켜면 제외한 모터를 다시 확인합니다.
+                </p>
+              </div>
+            )}
             <div>
               <dt>모터 온도 (토크 OFF 때만 측정, 마지막 값)</dt>
               <dd className="mt-1 flex flex-wrap gap-1.5">
                 {status.temperatures.length
-                  ? status.motor_ids.map((id, i) => (
-                      <span
-                        key={id}
-                        className={`rounded px-1.5 py-0.5 font-mono ${
-                          status.overheated ? 'bg-amber-900/60 text-amber-200' : 'bg-slate-800 text-slate-200'
-                        }`}
-                      >
-                        #{id} {status.temperatures[i]}℃
-                      </span>
-                    ))
+                  ? status.motor_ids.map((id, i) => {
+                      const fault = describeHardwareError(status.errorcodes?.[i] ?? 0)
+                      const isExcluded = excluded.some((m) => m.id === id)
+                      return (
+                        <span
+                          key={id}
+                          data-testid={`schedule-motor-chip-${id}`}
+                          title={fault ? `폴트: ${fault}` : undefined}
+                          className={`rounded px-1.5 py-0.5 font-mono ${
+                            fault || isExcluded
+                              ? 'bg-red-900/60 text-red-200 ring-1 ring-red-600'
+                              : status.overheated
+                                ? 'bg-amber-900/60 text-amber-200'
+                                : 'bg-slate-800 text-slate-200'
+                          }`}
+                        >
+                          #{id} {status.temperatures[i]}℃
+                          {isExcluded && ' 제외'}
+                          {fault && !isExcluded && ' 폴트'}
+                        </span>
+                      )
+                    })
                   : '-'}
               </dd>
             </div>

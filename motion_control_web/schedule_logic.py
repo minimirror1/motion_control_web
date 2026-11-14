@@ -184,3 +184,34 @@ def stop_progress_threshold(move_duration_sec: float) -> float:
     if move_duration_sec <= 0:
         return 0.995
     return 1.0 - min(0.01, 0.15 / move_duration_sec)
+
+
+# Dynamixel Hardware Error Status bits (address 70).
+HARDWARE_ERROR_BITS = (
+    (0, '입력 전압 오류'),
+    (2, '과열'),
+    (3, '엔코더 오류'),
+    (4, '전기 충격'),
+    (5, '과부하'),
+)
+
+
+def describe_hardware_error(code: int) -> str:
+    """Korean text for a Dynamixel Hardware Error Status value ('' if none)."""
+    if not code:
+        return ''
+    names = [name for bit, name in HARDWARE_ERROR_BITS if code & (1 << bit)]
+    return ', '.join(names) if names else f'오류 코드 {code}'
+
+
+def split_torque_result(
+    motor_ids: list[int], statuswords: list[int], excluded: Iterable[int],
+) -> tuple[list[int], list[int]]:
+    """(torque ON, torque still OFF) among the motors that are not excluded."""
+    skip = set(excluded)
+    on, off = [], []
+    for motor_id, statusword in zip(motor_ids, statuswords):
+        if motor_id in skip:
+            continue
+        (on if statusword != 0 else off).append(motor_id)
+    return on, off

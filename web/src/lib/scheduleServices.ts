@@ -64,6 +64,12 @@ export interface MotionProgress {
 }
 
 /** JSON published on motion_control_web/schedule_status by schedule_node. */
+export interface ExcludedMotor {
+  id: number
+  reason: string
+  since: string
+}
+
 export interface ScheduleStatus {
   phase: string
   enabled: boolean
@@ -76,6 +82,10 @@ export interface ScheduleStatus {
   overheated: boolean
   temperatures: number[]
   motor_ids: number[]
+  /** Dynamixel Hardware Error Status per motor (same order as motor_ids). */
+  errorcodes?: number[]
+  /** Motors left out after a failed torque ON, until the schedule is toggled. */
+  excluded_motors?: ExcludedMotor[]
   last_log: { timestamp: string; event: string; temperatures: number[] } | null
   last_error: string
   motion?: MotionProgress | null

@@ -18,6 +18,7 @@ const { default: App } = await import('../src/App')
 const { ControlPanel } = await import('../src/components/ControlPanel')
 const { SchedulePage } = await import('../src/components/schedule/SchedulePage')
 const { formatStepTime } = await import('../src/components/schedule/ScheduleTimeline')
+const { describeHardwareError } = await import('../src/lib/hardwareError')
 const { parseTemperatureCsv } = await import('../src/lib/scheduleServices')
 const { useConnectionStore } = await import('../src/store/connectionStore')
 type ScheduleStatus = import('../src/lib/scheduleServices').ScheduleStatus
@@ -205,5 +206,34 @@ describe('schedule UI', () => {
       expect.stringContaining('10초'),
       expect.stringContaining('22:00:00'),
     ])
+    expect(screen.queryByTestId('schedule-excluded-motors')).not.toBeInTheDocument()
+  })
+
+  it('lists excluded motors and marks their chip', async () => {
+    useConnectionStore.setState({
+      scheduleStatus: {
+        ...status(true),
+        errorcodes: [32, 0],
+        excluded_motors: [{ id: 0, reason: '과부하', since: '2026-11-05T09:58:12' }],
+      },
+    })
+    render(<SchedulePage />)
+    await screen.findByTestId('schedule-save')
+
+    const box = screen.getByTestId('schedule-excluded-motors')
+    expect(box).toHaveTextContent('#0 과부하')
+    expect(box).toHaveTextContent('09:58:12부터')
+    expect(screen.getByTestId('schedule-motor-chip-0')).toHaveTextContent('#0 34℃ 제외')
+    expect(screen.getByTestId('schedule-motor-chip-1')).toHaveTextContent('#1 32℃')
+    expect(screen.getByTestId('schedule-motor-chip-1')).not.toHaveTextContent('제외')
+  })
+})
+
+describe('describeHardwareError', () => {
+  it('decodes Dynamixel hardware error bits', () => {
+    expect(describeHardwareError(0)).toBe('')
+    expect(describeHardwareError(32)).toBe('과부하')
+    expect(describeHardwareError(36)).toBe('과열, 과부하')
+    expect(describeHardwareError(2)).toBe('오류 코드 2')
   })
 })

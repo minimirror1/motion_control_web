@@ -1,3 +1,4 @@
+import { describeHardwareError } from '../lib/hardwareError'
 import { isMotorEnabled, positionGaugePercent } from '../lib/motorStatus'
 import type { MotorConfigEntry } from '../lib/motorConfig'
 
@@ -44,8 +45,9 @@ export function MotorCard({
             <span
               data-testid={`motor-card-${controllerIndex}-fault`}
               className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white"
+              title={`Hardware Error Status ${errorcode}`}
             >
-              폴트 {errorcode}
+              폴트: {describeHardwareError(errorcode)}
             </span>
           )}
           <span className={enabled ? 'text-emerald-300' : 'text-slate-400'}>
